@@ -55,7 +55,7 @@ Source: `$memberstackDom.getCurrentMember()` or `loginMemberPasswordless()` resp
 |-------|------|-------------|-------|
 | `id` | string | `member.data.id` | Memberstack member ID — used for session check only |
 | `email` | string | `member.data.auth.email` | Display only |
-| `airtable_record_id` | string | `member.data.customFields['airtable-record-id']` | **Critical** — see push-registration.md contract. Exact field name must be verified at build time. |
+| `airtable_record_id` | string | `member.data.customFields['airtable-id']` | **Confirmed field name** — verified 2026-06-18. See push-registration.md contract. |
 | `first_name` | string | `member.data.customFields['first-name']` | Display (greeting) |
 
 **Validation**: `airtable_record_id` must be present and begin with `"rec"`. If absent

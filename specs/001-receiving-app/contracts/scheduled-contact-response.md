@@ -72,6 +72,10 @@ that the app reads for routing. The exact field names must be verified against
 **Routing key**: `data.type === 'scheduled_contact'` — routes the notification tap
 to the contact-response screen.
 
+**`data.type` field confirmed present** — added to `pwa_sender.py` as part of T009
+(commit 8bb5f87). `send_pwa_contact()` now passes `notification_type="scheduled_contact"`
+to every scheduled contact push. Wire app routing against this confirmed field name and value.
+
 **Vocabulary**: The `notification.title` and `notification.body` values are set by
 the backend (`pwa_sender.py`). They must comply with §II vocabulary rules. Verify
 at build time that no banned terms appear in the backend's notification templates.
@@ -232,8 +236,8 @@ Screen remains until user navigates away
 
 ## Build-Time Notes
 
-- **Verify `data.type` field name** in the FCM payload against `pwa_sender.py`
-  before wiring routing logic. The field may differ from `'type'`.
+- **`data.type` field confirmed** — field name is `"type"`, value is `"scheduled_contact"`.
+  Added to backend in T009 (commit 8bb5f87). No further verification needed.
 - **Verify the positive response value** (`"okay"` or alternative) in
   `reply_to_airtable_webhook.py` before wiring the POST. Do not change the backend
   enum without checking the full routing logic first.

@@ -77,31 +77,21 @@ The Airtable Table 1 record ID is stored as a **custom field on the Memberstack
 member object**, populated when the member's account was created via the website
 onboarding flow.
 
-**Expected location in the member object**:
+**Confirmed location in the member object**:
 ```js
-const airtableRecordId = member.data.customFields['airtable-record-id'];
+const airtableRecordId = member.data.customFields['airtable-id'];
 ```
 
-**CRITICAL build-time verification**: The exact custom field name (`'airtable-record-id'`
-above) is an assumption based on Memberstack naming conventions. Before writing any
-push registration code, read a live member object and confirm the exact field name:
-
-```js
-// Run this at login and log the output before wiring registration:
-const member = await $memberstackDom.getCurrentMember();
-console.log('[DEBUG] member customFields:', JSON.stringify(member.data.customFields));
-```
-
-The actual field name may differ (e.g. `'airtable_record_id'`, `'record-id'`,
-`'table1-id'`). **Do not assume — confirm.** This single verification prevents the
-most likely integration failure in the entire app.
+**Verified 2026-06-18** — field name confirmed as `'airtable-id'` from a live member
+object (`customFields` contained `{"first-name": "Ian", "airtable-id": "recJVHzTNBFcwiVXE"}`).
+The value begins with `"rec"` as expected.
 
 ### Validation before using the ID
 
 After login, validate the retrieved value before proceeding:
 
 ```js
-const airtableRecordId = member.data.customFields['<confirmed-field-name>'];
+const airtableRecordId = member.data.customFields['airtable-id'];
 
 if (!airtableRecordId || !airtableRecordId.startsWith('rec')) {
   // Surface a clear error — do not silently proceed
@@ -312,10 +302,8 @@ Push notifications will be delivered. Alarm and response POSTs will resolve corr
 
 ## Build-Time Notes
 
-- **STOP — verify the Memberstack custom field name before writing any registration
-  code.** Log `member.data.customFields` from a live member object and confirm the
-  exact field name. Do not write registration code until confirmed. The confirmed
-  name replaces `'airtable-record-id'` everywhere in this contract.
+- **Memberstack custom field name confirmed**: `'airtable-id'` — verified 2026-06-18
+  from a live member object. Use this name everywhere in registration code.
 - `member_id` in the POST body is the Airtable Table 1 record ID (`"rec..."`), not
   the Memberstack member ID. Passing the wrong ID silently fails — the backend returns
   200 but stores nothing. This is the most likely silent failure point in the app.

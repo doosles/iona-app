@@ -143,8 +143,7 @@ by §II vocabulary rules.
 
 The backend signals cycle completion via FCM push notification.
 
-**Expected payload** (verify `data.type` field name against `pwa_sender.py` at
-build time):
+**Confirmed payload** (field added to `pwa_sender.py`, commit T009/8bb5f87):
 ```json
 {
   "data": {
@@ -283,4 +282,7 @@ Await FCM escalation_complete signal
   the window is the friction.
 - No backend cancel endpoint is needed. Cancellation is entirely pre-escalation.
 - Terminal screen copy requires owner review before implementation.
-- Verify `data.type` FCM payload field name against `pwa_sender.py` at build time.
+- **`data.type` field confirmed present** — added to `pwa_sender.py` as part of T009
+  (commit 8bb5f87). `escalation_complete` signal sent via `send_escalation_complete_push()`
+  at both cycle-end points in `reply_to_airtable_webhook.py`. Field name is `"type"`,
+  value is `"escalation_complete"`. Wire app routing against this confirmed value.

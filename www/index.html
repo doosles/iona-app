@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Iona</title>
+  <link rel="stylesheet" href="style.css" />
+  <script
+    src="https://api.memberstack.com/static/memberstack.js?custom"
+    data-memberstack-app="app_cm1tvr2r7043e0smifp7x58q6"
+    defer
+  ></script>
+</head>
+<body>
+
+  <!-- Session check / loading -->
+  <div id="screen-check" class="screen">
+    <p id="msg-check" class="status-msg"></p>
+  </div>
+
+  <!-- Sign in -->
+  <div id="screen-login" class="screen hidden">
+    <div class="screen-content">
+      <h1 class="wordmark">Iona</h1>
+      <p class="intro">Enter your email to sign in.</p>
+
+      <div id="login-email-section">
+        <input id="login-email" type="email" placeholder="your@email.com" autocomplete="email" />
+        <button id="btn-send-code">Send code</button>
+        <p id="msg-login-email" class="error-msg hidden"></p>
+      </div>
+
+      <div id="login-code-section" class="hidden">
+        <p class="instruction">Check your email for a 6-digit code.</p>
+        <input id="login-code" type="number" placeholder="123456" inputmode="numeric" />
+        <button id="btn-verify-code">Verify</button>
+        <p id="msg-login-code" class="error-msg hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Home -->
+  <div id="screen-home" class="screen hidden">
+    <div class="screen-content">
+      <p id="msg-home-greeting" class="greeting"></p>
+      <p id="msg-home-warning" class="warning-msg hidden"></p>
+
+      <button id="btn-alarm" class="btn-alarm">Contact my people</button>
+
+      <div class="home-footer">
+        <button id="btn-goto-setup" class="btn-text">My contacts</button>
+        <button id="btn-logout" class="btn-text">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scheduled contact response -->
+  <div id="screen-contact" class="screen hidden">
+    <div class="screen-content">
+      <p id="contact-message" class="contact-msg"></p>
+      <button id="btn-respond" class="btn-respond">I'm here</button>
+      <div id="contact-confirm" class="hidden">
+        <p id="contact-confirm-msg" class="confirm-msg"></p>
+        <button id="btn-contact-done" class="btn-text">Done</button>
+      </div>
+      <p id="msg-contact-error" class="error-msg hidden"></p>
+    </div>
+  </div>
+
+  <!-- Alarm active — countdown + cancel -->
+  <div id="screen-alarm-active" class="screen hidden">
+    <div class="screen-content screen-content--alarm">
+      <p id="alarm-status-msg" class="alarm-status"></p>
+      <div id="alarm-countdown" class="countdown"></div>
+      <button id="btn-alarm-cancel" class="btn-cancel">Cancel</button>
+      <p id="msg-alarm-error" class="error-msg hidden"></p>
+    </div>
+  </div>
+
+  <!-- Alarm terminal -->
+  <div id="screen-alarm-terminal" class="screen hidden">
+    <div class="screen-content screen-content--alarm">
+      <p id="terminal-message" class="terminal-msg"></p>
+      <button id="btn-terminal-done" class="btn-text">Done</button>
+    </div>
+  </div>
+
+  <!-- Set up contacts -->
+  <div id="screen-setup" class="screen hidden">
+    <div class="screen-content">
+      <h2 class="screen-title">My contacts</h2>
+      <div id="setup-contacts-list" class="contacts-list"></div>
+      <button id="btn-setup-back" class="btn-text">Back</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "578908665179",
+    "firebase_url": "https://howsu-9a479.firebaseio.com",
+    "project_id": "howsu-9a479",
+    "storage_bucket": "howsu-9a479.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:578908665179:android:ed6e3eabb51da84812567e",
+        "android_client_info": {
+          "package_name": "com.iona.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKJwzAq4SzZmO3zVrhxAIootZ4Vvqv7MY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
