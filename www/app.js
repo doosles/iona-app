@@ -220,13 +220,23 @@ function initPushListeners() {
   });
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
-    console.log('[Push] Foreground notification:', notification.data?.type);
-    // Routing wired in T021 and T031
+    const type = notification.data?.type;
+    if (type === 'scheduled_contact') {
+      showContactScreen(notification.notification?.body ?? null);
+    } else if (type === 'escalation_complete') {
+      handleEscalationComplete();
+    }
   });
 
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-    console.log('[Push] Notification tap:', action.notification?.data?.type);
-    // Routing wired in T021 and T031
+    const type = action.notification?.data?.type;
+    if (type === 'scheduled_contact') {
+      showContactScreen(action.notification?.notification?.body ?? null);
+    } else if (type === 'escalation_complete') {
+      handleEscalationComplete();
+    } else {
+      show('screen-home');
+    }
   });
 }
 
@@ -269,6 +279,65 @@ async function setupPush() {
 
 // --- Section 6: Contact response (scheduled contact screen, response POST) ---
 
+function showContactScreen(body) {
+  const msg = body || 'How are you?';
+  setMsg('contact-message', msg);
+  document.getElementById('contact-confirm').classList.add('hidden');
+  document.getElementById('msg-contact-error').classList.add('hidden');
+  const btn = document.getElementById('btn-respond');
+  btn.disabled = false;
+  btn.textContent = 'OKAY THANKS';
+  show('screen-contact');
+}
+
+function handleEscalationComplete() {
+  // T031 — wired in next phase
+}
+
+function initContactResponse() {
+  document.getElementById('btn-respond').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-respond');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    const fcmToken = await getPreference('fcm_token');
+    if (!fcmToken) {
+      setMsg('msg-contact-error', 'Your device isn\'t fully registered. Please restart the app.');
+      document.getElementById('msg-contact-error').classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'OKAY THANKS';
+      return;
+    }
+    try {
+      const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({ fcm_token: fcmToken, response: 'okay' }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json().catch(() => ({}));
+      const confirmMsg = data.next_contact
+        ? 'Got it. Next contact: ' + data.next_contact + '.'
+        : 'Got it — Iona has been notified.';
+      setMsg('contact-confirm-msg', confirmMsg);
+      document.getElementById('contact-confirm').classList.remove('hidden');
+      document.getElementById('btn-respond').classList.add('hidden');
+    } catch (err) {
+      console.error('[Contact] pwa-respond failed:', err);
+      setMsg('msg-contact-error', 'We couldn\'t send your response — please try again.');
+      document.getElementById('msg-contact-error').classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'OKAY THANKS';
+    }
+  });
+
+  document.getElementById('btn-contact-done').addEventListener('click', () => {
+    show('screen-home');
+  });
+}
+
 // --- Section 7: Setup (contact list, first-time prompt) ---
 
 // --- Entry point ---
@@ -279,6 +348,7 @@ window.addEventListener('load', async () => {
     initSignIn();
     initLogout();
     initPushListeners();
+    initContactResponse();
     await checkSession();
   } catch (err) {
     console.error('[App] Init failed:', err);

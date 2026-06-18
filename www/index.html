@@ -6,8 +6,8 @@
   <title>Iona</title>
   <link rel="stylesheet" href="style.css" />
   <script
-    src="https://api.memberstack.com/static/memberstack.js?custom"
-    data-memberstack-app="app_cm1tvr2r7043e0smifp7x58q6"
+    src="https://static.memberstack.com/scripts/v1/memberstack.js"
+    data-memberstack-app="app_clv952roe00ny0sw1gf0d6rsg"
     defer
   ></script>
 </head>
@@ -32,9 +32,10 @@
 
       <div id="login-code-section" class="hidden">
         <p class="instruction">Check your email for a 6-digit code.</p>
-        <input id="login-code" type="number" placeholder="123456" inputmode="numeric" />
+        <input id="login-code" type="text" placeholder="123456" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" />
         <button id="btn-verify-code">Verify</button>
         <p id="msg-login-code" class="error-msg hidden"></p>
+        <button id="btn-new-code" class="btn-text hidden">Request a new code</button>
       </div>
     </div>
   </div>
@@ -58,7 +59,7 @@
   <div id="screen-contact" class="screen hidden">
     <div class="screen-content">
       <p id="contact-message" class="contact-msg"></p>
-      <button id="btn-respond" class="btn-respond">I'm here</button>
+      <button id="btn-respond" class="btn-respond">OKAY THANKS</button>
       <div id="contact-confirm" class="hidden">
         <p id="contact-confirm-msg" class="confirm-msg"></p>
         <button id="btn-contact-done" class="btn-text">Done</button>
