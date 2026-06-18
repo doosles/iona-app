@@ -80,6 +80,96 @@ async function initMemberstack() {
   }
 }
 
+async function checkSession() {
+  if (!currentMember) {
+    show('screen-login');
+    return;
+  }
+
+  const airtableId = currentMember.customFields?.['airtable-id'];
+  if (!airtableId || !airtableId.startsWith('rec')) {
+    show('screen-login');
+    console.error('[Session] airtable-id missing or malformed — showing sign-in');
+    return;
+  }
+
+  await setPreference('member_airtable_id', airtableId);
+  memberConfig = buildMemberConfig(currentMember);
+
+  const greeting = currentMember.customFields?.['first-name']
+    ? `Hello, ${currentMember.customFields['first-name']}.`
+    : 'Hello.';
+  setMsg('msg-home-greeting', greeting);
+
+  // TODO: call setupPush() here on session restore — wired in T019
+  show('screen-home');
+}
+
+async function onLoginSuccess(member) {
+  currentMember = member;
+
+  const airtableId = member.customFields?.['airtable-id'];
+  if (!airtableId || !airtableId.startsWith('rec')) {
+    setMsg('msg-login-code', 'Your account isn\'t fully set up yet. Please contact support.');
+    console.error('[Login] airtable-id missing or malformed:', member.customFields);
+    return;
+  }
+
+  await setPreference('member_airtable_id', airtableId);
+  memberConfig = buildMemberConfig(member);
+
+  const greeting = member.customFields?.['first-name']
+    ? `Hello, ${member.customFields['first-name']}.`
+    : 'Hello.';
+  setMsg('msg-home-greeting', greeting);
+
+  // TODO: call setupPush() here post-login — wired in T019
+  show('screen-home');
+}
+
+function initSignIn() {
+  const emailInput   = document.getElementById('login-email');
+  const codeInput    = document.getElementById('login-code');
+  const emailSection = document.getElementById('login-email-section');
+  const codeSection  = document.getElementById('login-code-section');
+  let pendingEmail   = '';
+
+  document.getElementById('btn-send-code').addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    if (!email) return;
+    setMsg('msg-login-email', '');
+    document.getElementById('msg-login-email').classList.add('hidden');
+    try {
+      await ms.sendMemberLoginPasswordlessEmail({ email });
+      pendingEmail = email;
+      emailSection.classList.add('hidden');
+      codeSection.classList.remove('hidden');
+    } catch (err) {
+      console.error('[SignIn] sendMemberLoginPasswordlessEmail failed:', err);
+      document.getElementById('msg-login-email').classList.remove('hidden');
+      setMsg('msg-login-email', 'Couldn\'t send a code. Please check your email and try again.');
+    }
+  });
+
+  document.getElementById('btn-verify-code').addEventListener('click', async () => {
+    const token = codeInput.value.trim();
+    if (!token || !pendingEmail) return;
+    setMsg('msg-login-code', '');
+    document.getElementById('msg-login-code').classList.add('hidden');
+    try {
+      const { data: member } = await ms.loginMemberPasswordless({
+        email: pendingEmail,
+        passwordlessToken: token,
+      });
+      await onLoginSuccess(member);
+    } catch (err) {
+      console.error('[SignIn] loginMemberPasswordless failed:', err);
+      document.getElementById('msg-login-code').classList.remove('hidden');
+      setMsg('msg-login-code', 'That code didn\'t work. Please check it and try again.');
+    }
+  });
+}
+
 // --- Section 4: Push registration (FCM listeners, register, backend POST) ---
 
 // --- Section 5: Alarm (constants, tone, countdown, cancel, commit, terminal) ---
@@ -93,7 +183,8 @@ async function initMemberstack() {
 window.addEventListener('load', async () => {
   try {
     await initMemberstack();
-    await checkSession(); // T013
+    initSignIn();
+    await checkSession();
   } catch (err) {
     console.error('[App] Init failed:', err);
   }
