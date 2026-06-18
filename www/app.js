@@ -154,23 +154,17 @@ function initSignIn() {
   document.getElementById('btn-verify-code').addEventListener('click', async () => {
     const token = codeInput.value.trim();
     const email = pendingEmail;
-    console.log('[Verify] Attempting verify — email:', email, 'token:', token, 'token length:', token.length);
+    if (!token || !email) return;
     try {
       const result = await ms.loginMemberPasswordless({
         email: email,
         passwordlessToken: token
       });
-      console.log('[Verify] Result:', JSON.stringify(result));
       await onLoginSuccess(result?.data?.member ?? result?.data ?? result);
     } catch (err) {
-      console.error('[Verify] Caught error type:', typeof err);
-      console.error('[Verify] Caught error keys:', Object.keys(err || {}));
-      console.error('[Verify] Caught error full:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
-      console.error('[Verify] err.message:', err?.message);
-      console.error('[Verify] err.code:', err?.code);
-      console.error('[Verify] err.type:', err?.type);
       setMsg('msg-login-code', err?.message || 'Please check the code and try again.');
       document.getElementById('msg-login-code').classList.remove('hidden');
+      document.getElementById('btn-new-code').classList.remove('hidden');
     }
   });
 
@@ -202,6 +196,30 @@ function initLogout() {
 
 // --- Section 4: Push registration (FCM listeners, register, backend POST) ---
 
+function initPushListeners() {
+  const { PushNotifications } = Capacitor.Plugins;
+
+  PushNotifications.addListener('registration', (token) => {
+    console.log('[Push] FCM token received:', token.value);
+    // Handled in setupPush() — T019
+  });
+
+  PushNotifications.addListener('registrationError', (err) => {
+    console.error('[Push] Registration error:', JSON.stringify(err));
+    // Error handling wired in T019
+  });
+
+  PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    console.log('[Push] Foreground notification:', notification.data?.type);
+    // Routing wired in T021 and T031
+  });
+
+  PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+    console.log('[Push] Notification tap:', action.notification?.data?.type);
+    // Routing wired in T021 and T031
+  });
+}
+
 // --- Section 5: Alarm (constants, tone, countdown, cancel, commit, terminal) ---
 
 // --- Section 6: Contact response (scheduled contact screen, response POST) ---
@@ -211,11 +229,11 @@ function initLogout() {
 // --- Entry point ---
 
 window.addEventListener('load', async () => {
-  console.log('[Origin]', window.location.href, window.location.origin);
   try {
     await initMemberstack();
     initSignIn();
     initLogout();
+    initPushListeners();
     await checkSession();
   } catch (err) {
     console.error('[App] Init failed:', err);
