@@ -101,7 +101,7 @@ async function checkSession() {
     : 'Hello.';
   setMsg('msg-home-greeting', greeting);
 
-  // TODO: call setupPush() here on session restore — wired in T019
+  await setupPush();
   show('screen-home');
 }
 
@@ -123,7 +123,7 @@ async function onLoginSuccess(member) {
     : 'Hello.';
   setMsg('msg-home-greeting', greeting);
 
-  // TODO: call setupPush() here post-login — wired in T019
+  await setupPush();
   show('screen-home');
 }
 
@@ -196,17 +196,27 @@ function initLogout() {
 
 // --- Section 4: Push registration (FCM listeners, register, backend POST) ---
 
+let pushRegistrationPending = false;
+
 function initPushListeners() {
   const { PushNotifications } = Capacitor.Plugins;
 
-  PushNotifications.addListener('registration', (token) => {
-    console.log('[Push] FCM token received:', token.value);
-    // Handled in setupPush() — T019
+  PushNotifications.addListener('registration', async (token) => {
+    if (!pushRegistrationPending) return;
+    pushRegistrationPending = false;
+    const newToken = token.value;
+    const stored = await getPreference('fcm_token');
+    if (newToken !== stored) {
+      await setPreference('fcm_token', newToken);
+      const airtableId = await getPreference('member_airtable_id');
+      await registerTokenWithBackend(newToken, airtableId);
+    }
   });
 
   PushNotifications.addListener('registrationError', (err) => {
     console.error('[Push] Registration error:', JSON.stringify(err));
-    // Error handling wired in T019
+    setMsg('msg-home-warning', 'Device registration incomplete — please restart the app.');
+    document.getElementById('msg-home-warning').classList.remove('hidden');
   });
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
@@ -218,6 +228,25 @@ function initPushListeners() {
     console.log('[Push] Notification tap:', action.notification?.data?.type);
     // Routing wired in T021 and T031
   });
+}
+
+async function registerTokenWithBackend(token, airtableId) {
+  // T020 — wired in next task
+}
+
+async function setupPush() {
+  const { PushNotifications } = Capacitor.Plugins;
+
+  const permission = await PushNotifications.requestPermissions();
+  if (permission.receive !== 'granted') {
+    console.error('[Push] Permission not granted:', permission.receive);
+    setMsg('msg-home-warning', 'Push notifications are off — some features won\'t work.');
+    document.getElementById('msg-home-warning').classList.remove('hidden');
+    return;
+  }
+
+  pushRegistrationPending = true;
+  await PushNotifications.register();
 }
 
 // --- Section 5: Alarm (constants, tone, countdown, cancel, commit, terminal) ---
