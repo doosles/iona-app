@@ -231,7 +231,23 @@ function initPushListeners() {
 }
 
 async function registerTokenWithBackend(token, airtableId) {
-  // T020 — wired in next task
+  try {
+    const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/register-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
+      body: JSON.stringify({ token, member_id: airtableId }),
+    });
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status);
+    }
+  } catch (err) {
+    console.error('[Push] registerTokenWithBackend failed:', err);
+    setMsg('msg-home-warning', 'Setup incomplete — your device may not receive contacts. Please restart the app.');
+    document.getElementById('msg-home-warning').classList.remove('hidden');
+  }
 }
 
 async function setupPush() {
