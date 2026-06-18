@@ -42,10 +42,38 @@ function setMsg(elementId, text) {
   el.textContent = text;
 }
 
+function fmtTime() {
+  return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function buildIonaCard(text, timeStr, isReply) {
+  return `
+    <div class="iona-card">
+      <div class="orb ${isReply ? 'orb--sm' : 'orb--lg'}">
+        <div class="orb-ring"></div>
+      </div>
+      <div class="iona-card-content">
+        <div class="iona-label">Iona · ${isReply ? timeStr : 'Just now'}</div>
+        <div class="iona-msg">${text}</div>
+        ${!isReply ? `<div class="iona-time">${timeStr}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+function buildBoutRow(text, timeStr) {
+  return `
+    <div class="bout-row">
+      <div class="bout">
+        <div class="bout-txt">${text}</div>
+        <div class="bout-time">${timeStr}</div>
+      </div>
+    </div>`;
+}
+
 // --- Section 3: Auth (Memberstack init, session check, sign-in, logout) ---
 
 let ms = null;            // Memberstack DOM instance — set once at init
-let currentMember = null; // cached from init; used by session check (T013)
+let currentMember = null; // cached from init; used by session check
 let memberConfig = null;  // held in memory post-login; never fetched on alarm tap
 
 function buildMemberConfig(memberData) {
@@ -96,13 +124,8 @@ async function checkSession() {
   await setPreference('member_airtable_id', airtableId);
   memberConfig = buildMemberConfig(currentMember);
 
-  const greeting = currentMember.customFields?.['first-name']
-    ? `Hello, ${currentMember.customFields['first-name']}.`
-    : 'Hello.';
-  setMsg('msg-home-greeting', greeting);
-
   await setupPush();
-  show('screen-home');
+  show('screen-today');
 }
 
 async function onLoginSuccess(member) {
@@ -118,13 +141,8 @@ async function onLoginSuccess(member) {
   await setPreference('member_airtable_id', airtableId);
   memberConfig = buildMemberConfig(member);
 
-  const greeting = member.customFields?.['first-name']
-    ? `Hello, ${member.customFields['first-name']}.`
-    : 'Hello.';
-  setMsg('msg-home-greeting', greeting);
-
   await setupPush();
-  show('screen-home');
+  show('screen-today');
 }
 
 function initSignIn() {
@@ -215,14 +233,14 @@ function initPushListeners() {
 
   PushNotifications.addListener('registrationError', (err) => {
     console.error('[Push] Registration error:', JSON.stringify(err));
-    setMsg('msg-home-warning', 'Device registration incomplete — please restart the app.');
-    document.getElementById('msg-home-warning').classList.remove('hidden');
+    setMsg('msg-today-warning', 'Device registration incomplete — please restart the app.');
+    document.getElementById('msg-today-warning').classList.remove('hidden');
   });
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
     const type = notification.data?.type;
     if (type === 'scheduled_contact') {
-      showContactScreen(notification.notification?.body ?? null);
+      showTodayMessage(notification.notification?.body ?? null, notification.data);
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
     }
@@ -231,11 +249,11 @@ function initPushListeners() {
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
     const type = action.notification?.data?.type;
     if (type === 'scheduled_contact') {
-      showContactScreen(action.notification?.notification?.body ?? null);
+      showTodayMessage(action.notification?.notification?.body ?? null, action.notification?.data);
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
     } else {
-      show('screen-home');
+      show('screen-today');
     }
   });
 }
@@ -255,8 +273,8 @@ async function registerTokenWithBackend(token, airtableId) {
     }
   } catch (err) {
     console.error('[Push] registerTokenWithBackend failed:', err);
-    setMsg('msg-home-warning', 'Setup incomplete — your device may not receive contacts. Please restart the app.');
-    document.getElementById('msg-home-warning').classList.remove('hidden');
+    setMsg('msg-today-warning', 'Setup incomplete — your device may not receive contacts. Please restart the app.');
+    document.getElementById('msg-today-warning').classList.remove('hidden');
   }
 }
 
@@ -266,8 +284,8 @@ async function setupPush() {
   const permission = await PushNotifications.requestPermissions();
   if (permission.receive !== 'granted') {
     console.error('[Push] Permission not granted:', permission.receive);
-    setMsg('msg-home-warning', 'Push notifications are off — some features won\'t work.');
-    document.getElementById('msg-home-warning').classList.remove('hidden');
+    setMsg('msg-today-warning', 'Push notifications are off — some features won\'t work.');
+    document.getElementById('msg-today-warning').classList.remove('hidden');
     return;
   }
 
@@ -277,36 +295,43 @@ async function setupPush() {
 
 // --- Section 5: Alarm (constants, tone, countdown, cancel, commit, terminal) ---
 
-// --- Section 6: Contact response (scheduled contact screen, response POST) ---
+// --- Section 6: Today screen (message display, response POST) ---
 
-function showContactScreen(body) {
-  const msg = body || 'How are you?';
-  setMsg('contact-message', msg);
-  document.getElementById('contact-confirm').classList.add('hidden');
-  document.getElementById('msg-contact-error').classList.add('hidden');
-  const btn = document.getElementById('btn-respond');
-  btn.disabled = false;
-  btn.textContent = 'OKAY THANKS';
-  show('screen-contact');
+let hasResponded = false;
+let pendingNotifData = null;
+
+function showTodayMessage(body, notifData) {
+  pendingNotifData = notifData ?? null;
+  hasResponded = false;
+  const text = body || 'How are you?';
+  const timeStr = fmtTime();
+  const thread = document.getElementById('today-thread');
+  thread.innerHTML = buildIonaCard(text, timeStr, false);
+  document.getElementById('today-empty').classList.add('hidden');
+  thread.classList.remove('hidden');
+  document.getElementById('btn-okay').classList.remove('btn--dim');
+  document.getElementById('btn-done').classList.add('hidden');
 }
 
 function handleEscalationComplete() {
   // T031 — wired in next phase
 }
 
-function initContactResponse() {
-  document.getElementById('btn-respond').addEventListener('click', async () => {
-    const btn = document.getElementById('btn-respond');
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
+function initTodayDate() {
+  const d = new Date();
+  const label = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('today-date').textContent = label;
+}
+
+function initTodayActions() {
+  document.getElementById('btn-okay').addEventListener('click', async () => {
+    if (hasResponded) return;
+    hasResponded = true;
+    const timeStr = fmtTime();
+    const thread = document.getElementById('today-thread');
+    thread.insertAdjacentHTML('beforeend', buildBoutRow('OKAY THANKS', timeStr));
+    document.getElementById('btn-okay').classList.add('btn--dim');
     const fcmToken = await getPreference('fcm_token');
-    if (!fcmToken) {
-      setMsg('msg-contact-error', 'Your device isn\'t fully registered. Please restart the app.');
-      document.getElementById('msg-contact-error').classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'OKAY THANKS';
-      return;
-    }
     try {
       const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
         method: 'POST',
@@ -318,23 +343,91 @@ function initContactResponse() {
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json().catch(() => ({}));
-      const confirmMsg = data.next_contact
-        ? 'Got it. Next contact: ' + data.next_contact + '.'
-        : 'Got it — Iona has been notified.';
-      setMsg('contact-confirm-msg', confirmMsg);
-      document.getElementById('contact-confirm').classList.remove('hidden');
-      document.getElementById('btn-respond').classList.add('hidden');
+      const confirmText = data.confirmation
+        ? data.confirmation
+        : 'Great to hear this. I will be in touch again soon.';
+      thread.insertAdjacentHTML('beforeend', buildIonaCard(confirmText, fmtTime(), true));
     } catch (err) {
-      console.error('[Contact] pwa-respond failed:', err);
-      setMsg('msg-contact-error', 'We couldn\'t send your response — please try again.');
-      document.getElementById('msg-contact-error').classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'OKAY THANKS';
+      console.error('[Today] pwa-respond failed:', err);
+      thread.insertAdjacentHTML('beforeend', buildIonaCard('We couldn\'t send your response — please try again.', fmtTime(), true));
     }
+    document.getElementById('btn-done').classList.remove('hidden');
   });
 
-  document.getElementById('btn-contact-done').addEventListener('click', () => {
-    show('screen-home');
+  document.getElementById('btn-alert').addEventListener('click', async () => {
+    hasResponded = true;
+    const timeStr = fmtTime();
+    const thread = document.getElementById('today-thread');
+    thread.insertAdjacentHTML('beforeend', buildBoutRow('ALERT CONTACTS', timeStr));
+    document.getElementById('btn-okay').classList.add('btn--dim');
+    const fcmToken = await getPreference('fcm_token');
+    try {
+      const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({ fcm_token: fcmToken, response: 'alert' }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    } catch (err) {
+      console.error('[Today] pwa-respond alert failed:', err);
+    }
+    thread.insertAdjacentHTML('beforeend', buildIonaCard('Sending an alert to your contacts right away.', fmtTime(), true));
+    document.getElementById('btn-done').classList.remove('hidden');
+  });
+
+  document.getElementById('btn-done').addEventListener('click', () => {
+    hasResponded = false;
+    document.getElementById('btn-okay').classList.add('btn--dim');
+    document.getElementById('btn-done').classList.add('hidden');
+  });
+}
+
+function initSettings() {
+  const overlay = document.getElementById('settings-overlay');
+
+  document.getElementById('nav-settings').addEventListener('click', () => {
+    overlay.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-settings-close').addEventListener('click', () => {
+    overlay.classList.add('hidden');
+  });
+
+  document.getElementById('btn-goto-setup').addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    show('screen-setup');
+  });
+
+  document.getElementById('btn-pause-restart').addEventListener('click', async () => {
+    const fcmToken = await getPreference('fcm_token');
+    const badge = document.getElementById('settings-status-badge');
+    const btn = document.getElementById('btn-pause-restart');
+    const isPaused = badge.textContent.trim() === 'Paused';
+    const endpoint = isPaused ? '/pwa-restart' : '/pwa-pause';
+    try {
+      await fetch('https://ferris-causing-shed.ngrok-free.dev' + endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({ fcm_token: fcmToken }),
+      });
+      if (isPaused) {
+        badge.textContent = 'Active';
+        badge.className = 'status-badge status-badge--active';
+        btn.textContent = 'Pause service';
+      } else {
+        badge.textContent = 'Paused';
+        badge.className = 'status-badge';
+        btn.textContent = 'Restart service';
+      }
+    } catch (err) {
+      console.error('[Settings] pause/restart failed:', err);
+    }
   });
 }
 
@@ -348,7 +441,9 @@ window.addEventListener('load', async () => {
     initSignIn();
     initLogout();
     initPushListeners();
-    initContactResponse();
+    initTodayDate();
+    initTodayActions();
+    initSettings();
     await checkSession();
   } catch (err) {
     console.error('[App] Init failed:', err);
