@@ -170,6 +170,22 @@ function initSignIn() {
   });
 }
 
+function initLogout() {
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    try {
+      await ms.logout();
+    } catch (err) {
+      console.error('[Logout] ms.logout() failed:', err);
+    }
+    await removePreference('fcm_token');
+    await removePreference('member_airtable_id');
+    await removePreference('escalation_state');
+    currentMember = null;
+    memberConfig  = null;
+    show('screen-login');
+  });
+}
+
 // --- Section 4: Push registration (FCM listeners, register, backend POST) ---
 
 // --- Section 5: Alarm (constants, tone, countdown, cancel, commit, terminal) ---
@@ -184,6 +200,7 @@ window.addEventListener('load', async () => {
   try {
     await initMemberstack();
     initSignIn();
+    initLogout();
     await checkSession();
   } catch (err) {
     console.error('[App] Init failed:', err);
