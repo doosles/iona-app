@@ -74,7 +74,7 @@ async function initMemberstack() {
   }
 
   const result = await ms.getCurrentMember();
-  currentMember = result?.data ?? null;
+  currentMember = result?.data?.member ?? result?.data ?? null;
   if (currentMember) {
     memberConfig = buildMemberConfig(currentMember);
   }
@@ -153,20 +153,34 @@ function initSignIn() {
 
   document.getElementById('btn-verify-code').addEventListener('click', async () => {
     const token = codeInput.value.trim();
-    if (!token || !pendingEmail) return;
-    setMsg('msg-login-code', '');
-    document.getElementById('msg-login-code').classList.add('hidden');
+    const email = pendingEmail;
+    console.log('[Verify] Attempting verify — email:', email, 'token:', token, 'token length:', token.length);
     try {
-      const { data: member } = await ms.loginMemberPasswordless({
-        email: pendingEmail,
-        passwordlessToken: token,
+      const result = await ms.loginMemberPasswordless({
+        email: email,
+        passwordlessToken: token
       });
-      await onLoginSuccess(member);
+      console.log('[Verify] Result:', JSON.stringify(result));
+      await onLoginSuccess(result?.data?.member ?? result?.data ?? result);
     } catch (err) {
-      console.error('[SignIn] loginMemberPasswordless failed:', err);
+      console.error('[Verify] Caught error type:', typeof err);
+      console.error('[Verify] Caught error keys:', Object.keys(err || {}));
+      console.error('[Verify] Caught error full:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      console.error('[Verify] err.message:', err?.message);
+      console.error('[Verify] err.code:', err?.code);
+      console.error('[Verify] err.type:', err?.type);
+      setMsg('msg-login-code', err?.message || 'Please check the code and try again.');
       document.getElementById('msg-login-code').classList.remove('hidden');
-      setMsg('msg-login-code', 'That code didn\'t work. Please check it and try again.');
     }
+  });
+
+  document.getElementById('btn-new-code').addEventListener('click', () => {
+    codeSection.classList.add('hidden');
+    emailSection.classList.remove('hidden');
+    document.getElementById('msg-login-code').classList.add('hidden');
+    document.getElementById('btn-new-code').classList.add('hidden');
+    codeInput.value = '';
+    pendingEmail = '';
   });
 }
 
@@ -197,6 +211,7 @@ function initLogout() {
 // --- Entry point ---
 
 window.addEventListener('load', async () => {
+  console.log('[Origin]', window.location.href, window.location.origin);
   try {
     await initMemberstack();
     initSignIn();
