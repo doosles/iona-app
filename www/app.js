@@ -443,6 +443,18 @@ function initSettings() {
     overlay.classList.add('hidden');
   });
 
+  const panel = document.querySelector('.settings-panel');
+  let startY = 0;
+  panel.addEventListener('touchstart', (e) => {
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  panel.addEventListener('touchend', (e) => {
+    const endY = e.changedTouches[0].clientY;
+    if (endY - startY > 60) {
+      overlay.classList.add('hidden');
+    }
+  }, { passive: true });
+
   const { Browser } = Capacitor.Plugins;
   const dashLinks = [
     { id: 'btn-schedule', url: 'https://iona.today/dashboard#schedule' },
