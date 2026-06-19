@@ -1,3 +1,29 @@
+/* === Theme tokens === */
+
+:root {
+  --bg: #081424;
+  --surface: #0C1C30;
+  --border: #1B344F;
+  --text: #ECF2F6;
+  --text-muted: #586A7A;
+  --bout-bg: #0C1C30;
+  --error: #E2604A;
+  --teal: #25C9BA;
+  --teal-glow: #34ECD9;
+  --teal-deep: #13A99B;
+  --radius: 12px;
+  --min-touch: 48px;
+}
+
+body.light {
+  --bg: #F5F9FB;
+  --surface: #FFFFFF;
+  --border: #DCE6ED;
+  --text: #0C1C30;
+  --text-muted: #7A8D9D;
+  --bout-bg: #FFFFFF;
+}
+
 /* === Base === */
 
 *, *::before, *::after {
@@ -6,30 +32,11 @@
   padding: 0;
 }
 
-:root {
-  --bg: #0f0f0f;
-  --surface: #1a1a1a;
-  --text: #f0f0f0;
-  --text-secondary: #a0a0a0;
-  --accent: #e8e0d4;
-  --error: #c0392b;
-  --warning: #e67e22;
-  --btn-primary-bg: #e8e0d4;
-  --btn-primary-text: #0f0f0f;
-  --btn-alarm-bg: #e8e0d4;
-  --btn-alarm-text: #0f0f0f;
-  --btn-cancel-bg: transparent;
-  --btn-cancel-border: #e8e0d4;
-  --btn-cancel-text: #e8e0d4;
-  --radius: 12px;
-  --min-touch: 48px;
-}
-
 html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -41,7 +48,7 @@ html, body {
   display: none !important;
 }
 
-/* === Screens === */
+/* === Screens (base) === */
 
 .screen {
   position: fixed;
@@ -50,6 +57,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background: var(--bg);
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
            env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
@@ -72,8 +80,11 @@ html, body {
 /* === Typography === */
 
 .wordmark {
-  font-size: 36px;
-  font-weight: 600;
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic;
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--teal);
   letter-spacing: -0.5px;
   margin-bottom: 8px;
 }
@@ -81,34 +92,33 @@ html, body {
 .screen-title {
   font-size: 22px;
   font-weight: 600;
+  color: var(--text);
 }
 
-.intro, .instruction {
-  color: var(--text-secondary);
+.intro,
+.instruction {
+  color: var(--text-muted);
   font-size: 15px;
 }
 
 .status-msg {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 15px;
   text-align: center;
-}
-
-.greeting {
-  font-size: 20px;
-  font-weight: 500;
 }
 
 /* === Inputs === */
 
 input[type="email"],
-input[type="number"] {
+input[type="text"] {
+  display: block;
   width: 100%;
   min-height: var(--min-touch);
   background: var(--surface);
-  border: 1px solid #333;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 17px;
   padding: 12px 16px;
   outline: none;
@@ -117,88 +127,62 @@ input[type="number"] {
 }
 
 input[type="email"]:focus,
-input[type="number"]:focus {
-  border-color: var(--accent);
+input[type="text"]:focus {
+  border-color: var(--teal);
 }
 
-/* === Buttons === */
+/* === Button reset === */
 
 button {
   cursor: pointer;
-  font-family: inherit;
-  font-size: 17px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   border: none;
   border-radius: var(--radius);
-  min-height: var(--min-touch);
   transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button:active {
   opacity: 0.75;
 }
 
-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
+/* === Login primary buttons === */
 
-/* Primary action */
 #btn-send-code,
 #btn-verify-code {
+  display: block;
   width: 100%;
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  font-weight: 600;
-  padding: 14px;
-}
-
-/* Alarm button */
-.btn-alarm {
-  width: 100%;
-  min-height: 64px;
-  background: var(--btn-alarm-bg);
-  color: var(--btn-alarm-text);
-  font-size: 20px;
-  font-weight: 700;
-  padding: 18px;
-  border-radius: var(--radius);
-  letter-spacing: -0.2px;
-}
-
-/* Cancel button */
-.btn-cancel {
-  min-width: var(--min-touch);
   min-height: var(--min-touch);
-  padding: 12px 32px;
-  background: var(--btn-cancel-bg);
-  border: 1.5px solid var(--btn-cancel-border);
-  color: var(--btn-cancel-text);
+  background: var(--teal);
+  color: #081424;
+  border: none;
   border-radius: var(--radius);
-  font-size: 17px;
-}
-
-/* Response button */
-.btn-respond {
-  width: 100%;
-  min-height: 56px;
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  font-size: 19px;
-  font-weight: 600;
-  padding: 14px;
-}
-
-/* Text-only nav buttons */
-.btn-text {
-  background: transparent;
-  color: var(--text-secondary);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 15px;
+  font-weight: 700;
+  padding: 14px;
+  cursor: pointer;
+}
+
+/* === Text-only button === */
+
+.btn-text {
+  display: block;
+  width: 100%;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
   min-height: var(--min-touch);
   padding: 8px 12px;
-  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
 }
 
-/* === Screen: Sign in === */
+/* === Sign-in screen === */
 
 #login-email-section,
 #login-code-section {
@@ -207,20 +191,405 @@ button:disabled {
   gap: 12px;
 }
 
-/* === Screen: Home === */
+/* === TODAY SCREEN === */
 
-.home-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
+#screen-today {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: hidden;
 }
 
-/* === Screen: Alarm active === */
+/* Topbar */
+
+.today-topbar {
+  flex-shrink: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 20px 14px;
+}
+
+.wordmark-today {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--teal);
+  letter-spacing: -0.2px;
+}
+
+/* Date line */
+
+.today-date {
+  flex-shrink: 0;
+  padding: 0 20px 12px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* Message area */
+
+.today-messages {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Empty state */
+
+.today-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+.today-empty-text {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 220px;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+/* Chat thread */
+
+.today-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+/* === Orb === */
+
+.orb {
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #57DDCF 0%, #13A99B 45%, #0C6A61 100%);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.orb--lg {
+  width: 40px;
+  height: 40px;
+}
+
+.orb--sm {
+  width: 22px;
+  height: 22px;
+}
+
+.orb--dim {
+  opacity: 0.3;
+}
+
+.orb-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(52, 236, 217, 0.25);
+  pointer-events: none;
+}
+
+/* === Iona message card (always dark navy — both light and dark modes) === */
+
+.iona-card {
+  background: #081424;
+  border: 0.5px solid #1B344F;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.iona-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iona-label {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #34ECD9;
+}
+
+.iona-msg {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: #C3F5ED;
+  line-height: 1.55;
+}
+
+.iona-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #586A7A;
+  margin-top: 2px;
+}
+
+/* === User response bubble === */
+
+.bout-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bout {
+  background: var(--bout-bg);
+  border: 0.5px solid var(--border);
+  border-radius: 12px 4px 12px 12px;
+  padding: 10px 14px;
+  max-width: 75%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bout-txt {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.bout-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* === Warning (push registration failures) === */
+
+.warning-msg {
+  flex-shrink: 0;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  color: #E0973A;
+  padding: 6px 20px;
+}
+
+/* === Today: action area === */
+
+.today-actions {
+  flex-shrink: 0;
+  padding: 12px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* OKAY THANKS — always white background, always red text, both modes */
+
+.btn-okay {
+  display: block;
+  width: 100%;
+  background: #FFFFFF;
+  color: #E2604A;
+  border: 1.5px solid #DCE6ED;
+  border-radius: 14px;
+  padding: 17px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+.btn-okay.btn--dim {
+  opacity: 0.35;
+}
+
+/* ALERT CONTACTS — always red background, always white text, always fully active */
+
+.btn-alert {
+  display: block;
+  width: 100%;
+  background: #E2604A;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  padding: 17px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+/* Done — ghost style, hidden by default via .hidden class */
+
+#btn-done {
+  display: block;
+  flex-shrink: 0;
+  width: calc(100% - 40px);
+  margin: 8px 20px 0;
+  background: transparent;
+  color: var(--text-muted);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+/* === Bottom navigation === */
+
+.today-nav {
+  flex-shrink: 0;
+  display: flex;
+  border-top: 0.5px solid var(--border);
+  margin-top: 10px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.nav-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 0;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nav-tab i {
+  font-size: 20px;
+}
+
+.nav-tab--active {
+  color: var(--teal);
+}
+
+/* === Settings overlay === */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+}
+
+.settings-panel {
+  width: 100%;
+  background: var(--surface);
+  border-top: 0.5px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-close {
+  display: block;
+  align-self: flex-end;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 4px 0 4px 8px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.settings-title {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 0.5px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.settings-row-label {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.status-badge {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0.5px solid var(--border);
+}
+
+.status-badge--active {
+  color: #2BB682;
+  background: rgba(43, 182, 130, 0.12);
+  border-color: rgba(43, 182, 130, 0.3);
+}
+
+.btn-pause-restart {
+  display: block;
+  width: 100%;
+  background: var(--surface);
+  color: var(--text);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+/* === Alarm screens === */
 
 .alarm-status {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: var(--text);
+  text-align: center;
 }
 
 .countdown {
@@ -235,29 +604,30 @@ button:disabled {
   justify-content: center;
 }
 
-/* === Screen: Terminal === */
-
 .terminal-msg {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 20px;
   font-weight: 500;
   line-height: 1.4;
   color: var(--text);
+  text-align: center;
 }
 
-/* === Screen: Contact response === */
-
-.contact-msg {
-  font-size: 18px;
-  line-height: 1.5;
+.btn-cancel {
+  display: block;
+  min-width: var(--min-touch);
+  min-height: var(--min-touch);
+  padding: 12px 32px;
+  background: transparent;
+  border: 1.5px solid var(--border);
   color: var(--text);
-}
-
-.confirm-msg {
+  border-radius: var(--radius);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 17px;
-  color: var(--text-secondary);
+  cursor: pointer;
 }
 
-/* === Screen: Setup === */
+/* === Setup screen === */
 
 .contacts-list {
   display: flex;
@@ -267,6 +637,7 @@ button:disabled {
 
 .contact-item {
   background: var(--surface);
+  border: 0.5px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
   display: flex;
@@ -275,24 +646,163 @@ button:disabled {
 }
 
 .contact-order {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   min-width: 20px;
 }
 
 .contact-name {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 17px;
   font-weight: 500;
+  color: var(--text);
 }
 
-/* === Messages === */
+/* === Error message === */
 
 .error-msg {
-  color: var(--error);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 14px;
+  color: var(--error);
 }
 
-.warning-msg {
-  color: var(--warning);
-  font-size: 14px;
+/* ─── Login screen — Oran orb + OTP rebuild ─── */
+
+.login-content {
+  align-items: center;
+  gap: 20px;
+}
+
+.login-content #login-email-section,
+.login-content #login-code-section {
+  width: 100%;
+  gap: 0;
+}
+
+.login-orb-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-wordmark {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic;
+  font-size: 28px;
+  font-weight: 500;
+  color: #25C9BA;
+  letter-spacing: -0.3px;
+  text-align: center;
+}
+
+.oran-orb {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #F5C97B 0%, #E0973A 60%, #BE7926 100%);
+  box-shadow:
+    0 0 28px color-mix(in srgb, #F5C97B 50%, transparent),
+    0 0 64px color-mix(in srgb, #F5C97B 28%, transparent);
+  animation: iona-breathe var(--dur-breath, 4.2s) var(--ease-calm, ease-in-out) infinite;
+  flex: none;
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.oran-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 201, 123, 0.2);
+  pointer-events: none;
+}
+
+.oran-ring--1 { inset: -10px; }
+.oran-ring--2 { inset: -20px; }
+
+@keyframes iona-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50%       { transform: scale(1.06); filter: brightness(1.14); }
+}
+
+.login-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+#login-email {
+  padding: 14px 16px;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+#btn-send-code,
+#btn-verify-code {
+  background: #25C9BA;
+  color: #081424;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  -webkit-appearance: none;
+}
+
+.otp-wrap {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.otp-box {
+  width: 38px;
+  height: 48px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+}
+
+.otp-box.filled { border-color: #25C9BA; }
+.otp-box.error  { border-color: #E2604A; }
+
+.login-code-sent {
+  font-size: 13px;
+  text-align: center;
+  color: #25C9BA;
+  margin-bottom: 20px;
+}
+
+.login-otp-error {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 12px;
+  color: #E2604A;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.btn-new-code {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  color: var(--text-muted);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  padding: 16px;
+  margin-top: 8px;
+  cursor: pointer;
+  -webkit-appearance: none;
 }

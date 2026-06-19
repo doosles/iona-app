@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Iona</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
   <link rel="stylesheet" href="style.css" />
   <script
     src="https://static.memberstack.com/scripts/v1/memberstack.js"
@@ -11,7 +15,7 @@
     defer
   ></script>
 </head>
-<body>
+<body class="dark">
 
   <!-- Session check / loading -->
   <div id="screen-check" class="screen">
@@ -20,55 +24,99 @@
 
   <!-- Sign in -->
   <div id="screen-login" class="screen hidden">
-    <div class="screen-content">
-      <h1 class="wordmark">Iona</h1>
-      <p class="intro">Enter your email to sign in.</p>
+    <div class="screen-content login-content">
+
+      <div class="login-orb-wrap">
+        <div class="oran-orb">
+          <div class="oran-ring oran-ring--1"></div>
+          <div class="oran-ring oran-ring--2"></div>
+        </div>
+        <span class="login-wordmark">Iona</span>
+      </div>
 
       <div id="login-email-section">
+        <p class="login-subtitle">Enter your email to sign in</p>
         <input id="login-email" type="email" placeholder="your@email.com" autocomplete="email" />
         <button id="btn-send-code">Send code</button>
         <p id="msg-login-email" class="error-msg hidden"></p>
       </div>
 
       <div id="login-code-section" class="hidden">
-        <p class="instruction">Check your email for a 6-digit code.</p>
-        <input id="login-code" type="text" placeholder="123456" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" />
-        <button id="btn-verify-code">Verify</button>
+        <p class="login-code-sent">Code sent to <span id="code-sent-email"></span></p>
+        <div class="otp-wrap" id="otp-wrap">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        </div>
+        <p id="login-otp-error" class="login-otp-error hidden">That code didn't work — please try again or request a new one.</p>
+        <button id="btn-verify-code">Sign in</button>
+        <button id="btn-new-code" class="btn-new-code">Request a new code</button>
         <p id="msg-login-code" class="error-msg hidden"></p>
-        <button id="btn-new-code" class="btn-text hidden">Request a new code</button>
       </div>
+
     </div>
   </div>
 
-  <!-- Home -->
-  <div id="screen-home" class="screen hidden">
-    <div class="screen-content">
-      <p id="msg-home-greeting" class="greeting"></p>
-      <p id="msg-home-warning" class="warning-msg hidden"></p>
+  <!-- Today screen — single persistent screen (replaces screen-home + screen-contact) -->
+  <div id="screen-today" class="screen hidden">
 
-      <button id="btn-alarm" class="btn-alarm">Contact my people</button>
+    <div class="today-topbar">
+      <span class="wordmark-today">Iona</span>
+    </div>
 
-      <div class="home-footer">
-        <button id="btn-goto-setup" class="btn-text">My contacts</button>
-        <button id="btn-logout" class="btn-text">Sign out</button>
+    <div class="today-date" id="today-date"></div>
+
+    <div class="today-messages" id="today-messages">
+      <div id="today-empty" class="today-empty">
+        <div class="orb orb--lg orb--dim">
+          <div class="orb-ring"></div>
+        </div>
+        <p class="today-empty-text">Your next message from Iona will appear here</p>
       </div>
+      <div id="today-thread" class="today-thread hidden"></div>
+    </div>
+
+    <p id="msg-today-warning" class="warning-msg hidden"></p>
+
+    <div class="today-actions">
+      <button id="btn-okay" class="btn-okay btn--dim">OKAY THANKS</button>
+      <button id="btn-alert" class="btn-alert">ALERT CONTACTS</button>
+    </div>
+
+    <button id="btn-done" class="btn-done hidden">✓ Done</button>
+
+    <nav class="today-nav">
+      <button class="nav-tab nav-tab--active" id="nav-today">
+        <i class="ti ti-sun"></i>
+        <span>Today</span>
+      </button>
+      <button class="nav-tab" id="nav-settings">
+        <i class="ti ti-settings"></i>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Settings overlay (slides up over Today screen — not a route) -->
+  <div id="settings-overlay" class="settings-overlay hidden">
+    <div class="settings-panel">
+      <button id="btn-settings-close" class="settings-close">✕</button>
+      <h2 class="settings-title">Service settings</h2>
+      <div class="settings-row">
+        <span class="settings-row-label">Status</span>
+        <span id="settings-status-badge" class="status-badge status-badge--active">Active</span>
+      </div>
+      <button id="btn-pause-restart" class="btn-pause-restart">Pause service</button>
+      <button id="btn-goto-setup" class="btn-text">My contacts</button>
+      <button id="btn-logout" class="btn-text">Sign out</button>
     </div>
   </div>
 
-  <!-- Scheduled contact response -->
-  <div id="screen-contact" class="screen hidden">
-    <div class="screen-content">
-      <p id="contact-message" class="contact-msg"></p>
-      <button id="btn-respond" class="btn-respond">OKAY THANKS</button>
-      <div id="contact-confirm" class="hidden">
-        <p id="contact-confirm-msg" class="confirm-msg"></p>
-        <button id="btn-contact-done" class="btn-text">Done</button>
-      </div>
-      <p id="msg-contact-error" class="error-msg hidden"></p>
-    </div>
-  </div>
-
-  <!-- Alarm active — countdown + cancel -->
+  <!-- Alarm active — countdown + cancel (T024+, out of scope) -->
   <div id="screen-alarm-active" class="screen hidden">
     <div class="screen-content screen-content--alarm">
       <p id="alarm-status-msg" class="alarm-status"></p>
@@ -78,7 +126,7 @@
     </div>
   </div>
 
-  <!-- Alarm terminal -->
+  <!-- Alarm terminal (T024+, out of scope) -->
   <div id="screen-alarm-terminal" class="screen hidden">
     <div class="screen-content screen-content--alarm">
       <p id="terminal-message" class="terminal-msg"></p>

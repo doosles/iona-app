@@ -147,32 +147,28 @@ async function onLoginSuccess(member) {
 
 function initSignIn() {
   const emailInput   = document.getElementById('login-email');
-  const codeInput    = document.getElementById('login-code');
   const emailSection = document.getElementById('login-email-section');
   const codeSection  = document.getElementById('login-code-section');
+  const otpBoxes     = Array.from(document.querySelectorAll('.otp-box'));
+  const otpError     = document.getElementById('login-otp-error');
   let pendingEmail   = '';
 
-  document.getElementById('btn-send-code').addEventListener('click', async () => {
-    const email = emailInput.value.trim();
-    if (!email) return;
-    setMsg('msg-login-email', '');
-    document.getElementById('msg-login-email').classList.add('hidden');
-    try {
-      await ms.sendMemberLoginPasswordlessEmail({ email });
-      pendingEmail = email;
-      emailSection.classList.add('hidden');
-      codeSection.classList.remove('hidden');
-    } catch (err) {
-      console.error('[SignIn] sendMemberLoginPasswordlessEmail failed:', err);
-      document.getElementById('msg-login-email').classList.remove('hidden');
-      setMsg('msg-login-email', 'Couldn\'t send a code. Please check your email and try again.');
-    }
-  });
+  function getOtpValue() {
+    return otpBoxes.map(b => b.value).join('');
+  }
 
-  document.getElementById('btn-verify-code').addEventListener('click', async () => {
-    const token = codeInput.value.trim();
+  function clearOtp() {
+    otpBoxes.forEach(b => {
+      b.value = '';
+      b.classList.remove('filled', 'error');
+    });
+    otpError.classList.add('hidden');
+  }
+
+  async function verifyCode() {
+    const token = getOtpValue();
     const email = pendingEmail;
-    if (!token || !email) return;
+    if (token.length < 6 || !email) return;
     try {
       const result = await ms.loginMemberPasswordless({
         email: email,
@@ -180,18 +176,69 @@ function initSignIn() {
       });
       await onLoginSuccess(result?.data?.member ?? result?.data ?? result);
     } catch (err) {
-      setMsg('msg-login-code', err?.message || 'Please check the code and try again.');
-      document.getElementById('msg-login-code').classList.remove('hidden');
-      document.getElementById('btn-new-code').classList.remove('hidden');
+      otpBoxes.forEach(b => {
+        b.value = '';
+        b.classList.remove('filled');
+        b.classList.add('error');
+      });
+      otpError.classList.remove('hidden');
+      otpBoxes[0].focus();
+    }
+  }
+
+  otpBoxes.forEach((box, i) => {
+    box.addEventListener('input', (e) => {
+      const digit = e.target.value.replace(/\D/g, '');
+      e.target.value = digit ? digit[digit.length - 1] : '';
+      if (e.target.value) {
+        e.target.classList.add('filled');
+        e.target.classList.remove('error');
+        if (i < otpBoxes.length - 1) {
+          otpBoxes[i + 1].focus();
+        } else {
+          verifyCode();
+        }
+      } else {
+        e.target.classList.remove('filled');
+      }
+    });
+
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !box.value && i > 0) {
+        otpBoxes[i - 1].value = '';
+        otpBoxes[i - 1].classList.remove('filled');
+        otpBoxes[i - 1].focus();
+      }
+    });
+  });
+
+  document.getElementById('btn-send-code').addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    if (!email) return;
+    document.getElementById('msg-login-email').classList.add('hidden');
+    try {
+      await ms.sendMemberLoginPasswordlessEmail({ email });
+      pendingEmail = email;
+      document.getElementById('code-sent-email').textContent = email;
+      clearOtp();
+      emailSection.classList.add('hidden');
+      codeSection.classList.remove('hidden');
+      otpBoxes[0].focus();
+    } catch (err) {
+      console.error('[SignIn] sendMemberLoginPasswordlessEmail failed:', err);
+      document.getElementById('msg-login-email').classList.remove('hidden');
+      setMsg('msg-login-email', 'Couldn\'t send a code. Please check your email and try again.');
     }
   });
 
+  document.getElementById('btn-verify-code').addEventListener('click', () => {
+    verifyCode();
+  });
+
   document.getElementById('btn-new-code').addEventListener('click', () => {
+    clearOtp();
     codeSection.classList.add('hidden');
     emailSection.classList.remove('hidden');
-    document.getElementById('msg-login-code').classList.add('hidden');
-    document.getElementById('btn-new-code').classList.add('hidden');
-    codeInput.value = '';
     pendingEmail = '';
   });
 }
