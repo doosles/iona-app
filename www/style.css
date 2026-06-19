@@ -989,7 +989,8 @@ button:active {
 
 .btn-alarm-done {
   display: block;
-  width: 100%;
+  flex-shrink: 0;
+  margin: 10px 14px 0;
   padding: 17px;
   background: none;
   border: 1.5px solid #25C9BA;

@@ -465,8 +465,7 @@ function showCancelWindowState() {
   document.getElementById('alarm-terminal-card').classList.add('hidden');
   document.getElementById('alarm-countdown-num').textContent = escalationCountdownValue;
   document.getElementById('alarm-countdown-card').classList.remove('hidden');
-  document.getElementById('btn-okay').classList.add('btn--dim');
-  document.getElementById('btn-okay').style.pointerEvents = 'none';
+  document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-alert').classList.add('hidden');
   document.getElementById('btn-cancel').classList.remove('hidden');
   document.getElementById('btn-alarm-done').classList.add('hidden');
@@ -497,8 +496,7 @@ function showEscalationActiveState() {
       <div class="alarm-contact-status">Waiting</div>`;
     list.appendChild(row);
   });
-  document.getElementById('btn-okay').classList.add('btn--dim');
-  document.getElementById('btn-okay').style.pointerEvents = 'none';
+  document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-alert').classList.add('hidden');
   document.getElementById('btn-cancel').classList.add('hidden');
   document.getElementById('btn-alarm-done').classList.add('hidden');
@@ -512,11 +510,8 @@ function showTerminalState() {
   document.getElementById('alarm-countdown-card').classList.add('hidden');
   document.getElementById('alarm-escalation-card').classList.add('hidden');
   document.getElementById('alarm-terminal-card').classList.remove('hidden');
-  document.getElementById('btn-okay').classList.add('btn--dim');
-  document.getElementById('btn-okay').style.pointerEvents = 'none';
-  document.getElementById('btn-alert').classList.remove('hidden');
-  document.getElementById('btn-alert').style.opacity = '1';
-  document.getElementById('btn-alert').style.pointerEvents = 'auto';
+  document.getElementById('btn-okay').classList.add('hidden');
+  document.getElementById('btn-alert').classList.add('hidden');
   document.getElementById('btn-cancel').classList.add('hidden');
   document.getElementById('btn-done').classList.add('hidden');
   document.getElementById('btn-alarm-done').classList.remove('hidden');
@@ -535,6 +530,8 @@ function showAlarmIdleReset() {
   } else {
     document.getElementById('today-empty').classList.remove('hidden');
   }
+  document.getElementById('btn-okay').classList.remove('hidden');
+  document.getElementById('btn-okay').classList.add('btn--dim');
   document.getElementById('btn-okay').style.pointerEvents = '';
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-cancel').classList.add('hidden');
