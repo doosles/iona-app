@@ -323,19 +323,19 @@ button:active {
 
 .iona-label {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #34ECD9;
+  font-size: 10px;
+  font-weight: 500;
+  color: #FFFFFF;
+  margin-bottom: 5px;
+  letter-spacing: 0.02em;
 }
 
 .iona-msg {
-  font-family: 'Newsreader', Georgia, serif;
-  font-style: italic;
-  font-size: 14px;
-  color: #C3F5ED;
-  line-height: 1.55;
+  font-family: 'Dancing Script', cursive;
+  font-size: 16px;
+  font-weight: 600;
+  color: #25C9BA;
+  line-height: 1.5;
 }
 
 .iona-time {
@@ -936,4 +936,72 @@ button:active {
   font-size: 12px;
   color: #586A7A;
   line-height: 1.5;
+}
+
+/* --- Orb backdrop with sonic pings --- */
+
+.orb-backdrop-system {
+  position: absolute;
+  top: 44%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0; height: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+.orb-backdrop-system.hidden-orb { opacity: 0; }
+.orb-backdrop-core {
+  position: absolute;
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 38%,
+    rgba(87,221,207,0.18) 0%,
+    rgba(19,169,155,0.10) 50%,
+    transparent 100%
+  );
+  transform: translate(-50%, -50%);
+  animation: orb-breathe 4.2s ease-in-out infinite;
+}
+.orb-ping {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(37,201,186,0.7);
+  transform: translate(-50%, -50%);
+  animation: sonic-ping 3.6s ease-out infinite;
+}
+.orb-ping--1 { animation-delay: 0s; }
+.orb-ping--2 { animation-delay: 1.2s; }
+.orb-ping--3 { animation-delay: 2.4s; }
+@keyframes sonic-ping {
+  0%   { width: 160px; height: 160px; opacity: 0.8; border-width: 1.5px; }
+  100% { width: 320px; height: 320px; opacity: 0; border-width: 0.5px; }
+}
+@keyframes orb-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%       { transform: translate(-50%, -50%) scale(1.06); }
+}
+
+/* --- Return to Iona button --- */
+
+.btn-alarm-done {
+  display: block;
+  width: 100%;
+  padding: 17px;
+  background: none;
+  border: 1.5px solid #25C9BA;
+  border-radius: 14px;
+  color: #25C9BA;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  animation: teal-pulse 1.5s ease-in-out infinite;
+}
+@keyframes teal-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37,201,186,0.35); }
+  50%       { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(37,201,186,0); }
 }

@@ -6,7 +6,7 @@
   <title>Iona</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Newsreader:ital,wght@1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
   <link rel="stylesheet" href="style.css" />
   <script
@@ -69,12 +69,18 @@
 
     <div class="today-date" id="today-date"></div>
 
+    <div class="orb-backdrop-system" id="orb-backdrop-system">
+      <div class="orb-backdrop-core"></div>
+      <div class="orb-ping orb-ping--1"></div>
+      <div class="orb-ping orb-ping--2"></div>
+      <div class="orb-ping orb-ping--3"></div>
+    </div>
+
     <div class="today-messages" id="today-messages">
       <div id="today-empty" class="today-empty">
         <div class="orb orb--lg orb--dim">
           <div class="orb-ring"></div>
         </div>
-        <p class="today-empty-text">Your next message from Iona will appear here</p>
       </div>
       <div id="today-thread" class="today-thread hidden"></div>
       <div class="alarm-countdown-card hidden" id="alarm-countdown-card">
@@ -90,8 +96,9 @@
         <div class="alarm-terminal-icon">
           <i class="ti ti-check" aria-hidden="true"></i>
         </div>
-        <div class="alarm-terminal-title">Your contacts have been reached</div>
-        <div class="alarm-terminal-sub">[Terminal copy — pending owner approval]</div>
+        <div class="alarm-terminal-title">I've tried your contacts.</div>
+        <!-- v2: copy becomes dynamic when econtact acknowledgement is built — FCM escalation_complete payload will include outcome status -->
+        <div class="alarm-terminal-sub">If someone is able to help, they are on their way.</div>
       </div>
     </div>
 
@@ -101,6 +108,7 @@
       <button id="btn-okay" class="btn-okay btn--dim">OKAY THANKS</button>
       <button id="btn-alert" class="btn-alert">ALERT CONTACTS</button>
       <button id="btn-cancel" class="btn-cancel hidden">CANCEL</button>
+      <button id="btn-alarm-done" class="btn-alarm-done hidden">↩ Return to Iona</button>
     </div>
 
     <button id="btn-done" class="btn-done hidden">✓ Done</button>

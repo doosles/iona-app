@@ -458,6 +458,7 @@ function getCancelWindowSeconds(config) {
 }
 
 function showCancelWindowState() {
+  hideOrb();
   document.getElementById('today-empty').classList.add('hidden');
   document.getElementById('today-thread').classList.add('hidden');
   document.getElementById('alarm-escalation-card').classList.add('hidden');
@@ -468,10 +469,12 @@ function showCancelWindowState() {
   document.getElementById('btn-okay').style.pointerEvents = 'none';
   document.getElementById('btn-alert').classList.add('hidden');
   document.getElementById('btn-cancel').classList.remove('hidden');
+  document.getElementById('btn-alarm-done').classList.add('hidden');
 }
 
 function showEscalationActiveState() {
   show('screen-today');
+  hideOrb();
   document.getElementById('today-empty').classList.add('hidden');
   document.getElementById('today-thread').classList.add('hidden');
   document.getElementById('alarm-countdown-card').classList.add('hidden');
@@ -498,10 +501,12 @@ function showEscalationActiveState() {
   document.getElementById('btn-okay').style.pointerEvents = 'none';
   document.getElementById('btn-alert').classList.add('hidden');
   document.getElementById('btn-cancel').classList.add('hidden');
+  document.getElementById('btn-alarm-done').classList.add('hidden');
 }
 
 function showTerminalState() {
   show('screen-today');
+  hideOrb();
   document.getElementById('today-empty').classList.add('hidden');
   document.getElementById('today-thread').classList.add('hidden');
   document.getElementById('alarm-countdown-card').classList.add('hidden');
@@ -513,7 +518,8 @@ function showTerminalState() {
   document.getElementById('btn-alert').style.opacity = '1';
   document.getElementById('btn-alert').style.pointerEvents = 'auto';
   document.getElementById('btn-cancel').classList.add('hidden');
-  document.getElementById('btn-done').classList.remove('hidden');
+  document.getElementById('btn-done').classList.add('hidden');
+  document.getElementById('btn-alarm-done').classList.remove('hidden');
 }
 
 function showAlarmIdleReset() {
@@ -521,6 +527,7 @@ function showAlarmIdleReset() {
   document.getElementById('alarm-escalation-card').classList.add('hidden');
   document.getElementById('alarm-terminal-card').classList.add('hidden');
   document.getElementById('alarm-countdown-num').textContent = '10';
+  document.getElementById('btn-alarm-done').classList.add('hidden');
   const thread = document.getElementById('today-thread');
   if (thread.innerHTML.trim()) {
     thread.classList.remove('hidden');
@@ -531,6 +538,14 @@ function showAlarmIdleReset() {
   document.getElementById('btn-okay').style.pointerEvents = '';
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-cancel').classList.add('hidden');
+  showOrb();
+}
+
+function hideOrb() {
+  document.getElementById('orb-backdrop-system')?.classList.add('hidden-orb');
+}
+function showOrb() {
+  document.getElementById('orb-backdrop-system')?.classList.remove('hidden-orb');
 }
 
 async function commitEscalation(fcmToken) {
@@ -574,6 +589,7 @@ let hasResponded = false;
 let pendingNotifData = null;
 
 function showTodayMessage(body, notifData) {
+  hideOrb();
   pendingNotifData = notifData ?? null;
   hasResponded = false;
   const text = body || 'How are you?';
@@ -690,6 +706,15 @@ function initTodayActions() {
     }, 1000);
   });
 
+  document.getElementById('btn-alarm-done').addEventListener('click', async () => {
+    document.getElementById('btn-alarm-done').classList.add('hidden');
+    await setPreference('escalation_state', 'idle');
+    const { KeepAwake } = Capacitor.Plugins;
+    KeepAwake.allowSleep();
+    showAlarmIdleReset();
+    showOrb();
+  });
+
   document.getElementById('btn-done').addEventListener('click', async () => {
     hasResponded = false;
     escalationCountdownTimer = null;
@@ -705,12 +730,14 @@ function initTodayActions() {
     await setPreference('escalation_state', 'idle');
     const { KeepAwake } = Capacitor.Plugins;
     KeepAwake.allowSleep();
+    showOrb();
   });
 }
 
 function initSettings() {
   // v2 — Settings: theme toggle (day/night). Saves to Preferences, applies dark/light class on launch.
   // v2 — Settings: button colour toggle ('Iona theme' teal/red vs default white/red). Saves to Preferences, applies btn-theme class on btn-area on launch.
+  // v2 — Settings: message font toggle ('Iona style' Dancing Script teal vs plain Newsreader white). Saves to Preferences.
   const overlay = document.getElementById('settings-overlay');
 
   document.getElementById('nav-settings').addEventListener('click', () => {
