@@ -806,3 +806,14 @@ button:active {
   cursor: pointer;
   -webkit-appearance: none;
 }
+
+.settings-section-label {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 12px 0 4px;
+  margin: 0;
+}

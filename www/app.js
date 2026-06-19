@@ -443,9 +443,19 @@ function initSettings() {
     overlay.classList.add('hidden');
   });
 
-  document.getElementById('btn-goto-setup').addEventListener('click', () => {
-    overlay.classList.add('hidden');
-    show('screen-setup');
+  const { Browser } = Capacitor.Plugins;
+  const dashLinks = [
+    { id: 'btn-schedule', url: 'https://howsu.today/dashboard#schedule' },
+    { id: 'btn-service',  url: 'https://howsu.today/dashboard#service' },
+    { id: 'btn-contacts', url: 'https://howsu.today/dashboard#contacts' },
+    { id: 'btn-account',  url: 'https://howsu.today/dashboard#account' },
+    { id: 'btn-logs',     url: 'https://howsu.today/dashboard#logs' },
+  ];
+  dashLinks.forEach(({ id, url }) => {
+    document.getElementById(id).addEventListener('click', async () => {
+      overlay.classList.add('hidden');
+      await Browser.open({ url });
+    });
   });
 
   document.getElementById('btn-pause-restart').addEventListener('click', async () => {
