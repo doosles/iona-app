@@ -445,11 +445,11 @@ function initSettings() {
 
   const { Browser } = Capacitor.Plugins;
   const dashLinks = [
-    { id: 'btn-schedule', url: 'https://howsu.today/dashboard#schedule' },
-    { id: 'btn-service',  url: 'https://howsu.today/dashboard#service' },
-    { id: 'btn-contacts', url: 'https://howsu.today/dashboard#contacts' },
-    { id: 'btn-account',  url: 'https://howsu.today/dashboard#account' },
-    { id: 'btn-logs',     url: 'https://howsu.today/dashboard#logs' },
+    { id: 'btn-schedule', url: 'https://iona.today/dashboard#schedule' },
+    { id: 'btn-service',  url: 'https://iona.today/dashboard#service' },
+    { id: 'btn-contacts', url: 'https://iona.today/dashboard#contacts' },
+    { id: 'btn-account',  url: 'https://iona.today/dashboard#account' },
+    { id: 'btn-logs',     url: 'https://iona.today/dashboard#logs' },
   ];
   dashLinks.forEach(({ id, url }) => {
     document.getElementById(id).addEventListener('click', async () => {
