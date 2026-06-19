@@ -817,3 +817,121 @@ button:active {
   padding: 12px 0 4px;
   margin: 0;
 }
+
+/* --- Alarm states --- */
+
+.alarm-countdown-card {
+  background: #0C1C30;
+  border: 1.5px solid #E2604A;
+  border-radius: 16px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.alarm-countdown-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #E2604A;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.alarm-countdown-num {
+  font-size: 64px;
+  font-weight: 700;
+  color: #E2604A;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+  transition: transform 0.1s;
+}
+.alarm-countdown-num.pulse {
+  transform: scale(1.12);
+}
+.alarm-countdown-sub {
+  font-size: 13px;
+  color: #7A8D9D;
+  line-height: 1.4;
+}
+.btn-cancel {
+  display: block;
+  width: 100%;
+  padding: 17px;
+  background: none;
+  border: 1.5px solid #E2604A;
+  border-radius: 14px;
+  color: #E2604A;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.alarm-escalation-card {
+  background: #0C1C30;
+  border: 0.5px solid #1B344F;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.alarm-esc-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #E2604A;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+.alarm-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 0.5px solid #1B344F;
+}
+.alarm-contact-row:last-child { border-bottom: none; }
+.alarm-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.alarm-dot--waiting { background: #294662; }
+.alarm-dot--trying { background: #E0973A; }
+.alarm-dot--done { background: #2BB682; }
+.alarm-contact-name { font-size: 13px; color: #ECF2F6; flex: 1; }
+.alarm-contact-status { font-size: 11px; color: #586A7A; }
+.alarm-terminal-card {
+  background: #0C1C30;
+  border: 0.5px solid #2BB682;
+  border-radius: 16px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.alarm-terminal-icon {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(43,182,130,0.15);
+  border: 1px solid rgba(43,182,130,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #2BB682;
+}
+.alarm-terminal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ECF2F6;
+}
+.alarm-terminal-sub {
+  font-size: 12px;
+  color: #586A7A;
+  line-height: 1.5;
+}

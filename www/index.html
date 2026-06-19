@@ -77,6 +77,22 @@
         <p class="today-empty-text">Your next message from Iona will appear here</p>
       </div>
       <div id="today-thread" class="today-thread hidden"></div>
+      <div class="alarm-countdown-card hidden" id="alarm-countdown-card">
+        <div class="alarm-countdown-label">Alerting your contacts in</div>
+        <div class="alarm-countdown-num" id="alarm-countdown-num">10</div>
+        <div class="alarm-countdown-sub">Tap cancel to stop</div>
+      </div>
+      <div class="alarm-escalation-card hidden" id="alarm-escalation-card">
+        <div class="alarm-esc-label">Reaching your contacts</div>
+        <div id="alarm-contacts-list"></div>
+      </div>
+      <div class="alarm-terminal-card hidden" id="alarm-terminal-card">
+        <div class="alarm-terminal-icon">
+          <i class="ti ti-check" aria-hidden="true"></i>
+        </div>
+        <div class="alarm-terminal-title">Your contacts have been reached</div>
+        <div class="alarm-terminal-sub">[Terminal copy — pending owner approval]</div>
+      </div>
     </div>
 
     <p id="msg-today-warning" class="warning-msg hidden"></p>
@@ -84,6 +100,7 @@
     <div class="today-actions">
       <button id="btn-okay" class="btn-okay btn--dim">OKAY THANKS</button>
       <button id="btn-alert" class="btn-alert">ALERT CONTACTS</button>
+      <button id="btn-cancel" class="btn-cancel hidden">CANCEL</button>
     </div>
 
     <button id="btn-done" class="btn-done hidden">✓ Done</button>
@@ -121,15 +138,6 @@
     </div>
   </div>
 
-  <!-- Alarm active — countdown + cancel (T024+, out of scope) -->
-  <div id="screen-alarm-active" class="screen hidden">
-    <div class="screen-content screen-content--alarm">
-      <p id="alarm-status-msg" class="alarm-status"></p>
-      <div id="alarm-countdown" class="countdown"></div>
-      <button id="btn-alarm-cancel" class="btn-cancel">Cancel</button>
-      <p id="msg-alarm-error" class="error-msg hidden"></p>
-    </div>
-  </div>
 
   <!-- Alarm terminal (T024+, out of scope) -->
   <div id="screen-alarm-terminal" class="screen hidden">

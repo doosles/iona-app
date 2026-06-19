@@ -70,6 +70,84 @@ function buildBoutRow(text, timeStr) {
     </div>`;
 }
 
+// --- Section 2b: Audio (alarm siren, voice message, pulse tone) ---
+
+let escalationCountdownTimer = null;
+let escalationCountdownValue = 0;
+let _audioCtx = null;
+
+const ALARM_SIREN_LOW_FREQ = 400;
+const ALARM_SIREN_HIGH_FREQ = 900;
+const ALARM_SIREN_DURATION = 2.0;
+const ALARM_SIREN_CYCLES = 3;
+const ALARM_SIREN_TYPE = 'sine';
+const ALARM_PULSE_FREQ = 660;
+const ALARM_PULSE_DURATION = 80;
+const ALARM_ESCALATION_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+
+function getAudioContext() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+function playAlarmSiren() {
+  return new Promise((resolve) => {
+    const c = getAudioContext();
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.connect(g);
+    g.connect(c.destination);
+    osc.type = ALARM_SIREN_TYPE;
+    const now = c.currentTime;
+    const cycleDur = ALARM_SIREN_DURATION / ALARM_SIREN_CYCLES;
+    osc.frequency.setValueAtTime(ALARM_SIREN_LOW_FREQ, now);
+    for (let i = 0; i < ALARM_SIREN_CYCLES; i++) {
+      const t = now + i * cycleDur;
+      osc.frequency.linearRampToValueAtTime(ALARM_SIREN_HIGH_FREQ, t + cycleDur * 0.5);
+      osc.frequency.linearRampToValueAtTime(ALARM_SIREN_LOW_FREQ, t + cycleDur);
+    }
+    g.gain.setValueAtTime(0.5, now);
+    g.gain.setValueAtTime(0.5, now + ALARM_SIREN_DURATION - 0.1);
+    g.gain.linearRampToValueAtTime(0, now + ALARM_SIREN_DURATION);
+    osc.start(now);
+    osc.stop(now + ALARM_SIREN_DURATION);
+    osc.onended = resolve;
+  });
+}
+
+function playVoiceMessage() {
+  // v2 — replace with: new Audio('https://static.iona.today/audio/alert-message.mp3').play()
+  // using a pre-recorded Amy Neural file. Also make "10 seconds" dynamic based on configured cancel window.
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) { resolve(); return; }
+    const msg = new SpeechSynthesisUtterance(
+      "This is Iona, you have pressed the alert contacts button, if you do not cancel within 10 seconds we will alert your contacts that you are in need of assistance."
+    );
+    msg.rate = 0.95;
+    msg.pitch = 1.0;
+    msg.volume = 1.0;
+    msg.onend = resolve;
+    msg.onerror = resolve;
+    window.speechSynthesis.speak(msg);
+  });
+}
+
+function playPulseTone() {
+  const c = getAudioContext();
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.connect(g);
+  g.connect(c.destination);
+  osc.type = 'sine';
+  osc.frequency.value = ALARM_PULSE_FREQ;
+  const now = c.currentTime;
+  g.gain.setValueAtTime(0.35, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + ALARM_PULSE_DURATION / 1000);
+  osc.start(now);
+  osc.stop(now + ALARM_PULSE_DURATION / 1000 + 0.05);
+}
+
 // --- Section 3: Auth (Memberstack init, session check, sign-in, logout) ---
 
 let ms = null;            // Memberstack DOM instance — set once at init
@@ -126,6 +204,12 @@ async function checkSession() {
 
   await setupPush();
   show('screen-today');
+  const savedEscState = await getPreference('escalation_state');
+  if (savedEscState === 'active') {
+    showEscalationActiveState();
+  } else if (savedEscState === 'terminal') {
+    showTerminalState();
+  }
 }
 
 async function onLoginSuccess(member) {
@@ -143,6 +227,12 @@ async function onLoginSuccess(member) {
 
   await setupPush();
   show('screen-today');
+  const savedEscState = await getPreference('escalation_state');
+  if (savedEscState === 'active') {
+    showEscalationActiveState();
+  } else if (savedEscState === 'terminal') {
+    showTerminalState();
+  }
 }
 
 function initSignIn() {
@@ -342,6 +432,121 @@ async function setupPush() {
 
 // --- Section 5: Alarm (constants, tone, countdown, cancel, commit, terminal) ---
 
+const ALARM_CANCEL_WINDOW_SECONDS = 10;
+
+function getCancelWindowSeconds(config) {
+  return config?.alarmCancelWindow ?? ALARM_CANCEL_WINDOW_SECONDS;
+}
+
+function showCancelWindowState() {
+  document.getElementById('today-empty').classList.add('hidden');
+  document.getElementById('today-thread').classList.add('hidden');
+  document.getElementById('alarm-escalation-card').classList.add('hidden');
+  document.getElementById('alarm-terminal-card').classList.add('hidden');
+  document.getElementById('alarm-countdown-num').textContent = escalationCountdownValue;
+  document.getElementById('alarm-countdown-card').classList.remove('hidden');
+  document.getElementById('btn-okay').classList.add('btn--dim');
+  document.getElementById('btn-okay').style.pointerEvents = 'none';
+  document.getElementById('btn-alert').classList.add('hidden');
+  document.getElementById('btn-cancel').classList.remove('hidden');
+}
+
+function showEscalationActiveState() {
+  document.getElementById('today-empty').classList.add('hidden');
+  document.getElementById('today-thread').classList.add('hidden');
+  document.getElementById('alarm-countdown-card').classList.add('hidden');
+  document.getElementById('alarm-terminal-card').classList.add('hidden');
+  document.getElementById('alarm-escalation-card').classList.remove('hidden');
+  // v2 — real-time contact status per attempt via FCM updates; v1 shows all as Waiting
+  const list = document.getElementById('alarm-contacts-list');
+  list.innerHTML = '';
+  const contactFields = [
+    'contact-one-first-name', 'contact-two-first-name', 'contact-three-first-name',
+    'contact-four-first-name', 'contact-five-first-name', 'contact-six-first-name',
+  ];
+  const contacts = contactFields.map(f => currentMember?.customFields?.[f]).filter(Boolean);
+  contacts.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'alarm-contact-row';
+    row.innerHTML = `
+      <div class="alarm-dot alarm-dot--waiting"></div>
+      <div class="alarm-contact-name">${name}</div>
+      <div class="alarm-contact-status">Waiting</div>`;
+    list.appendChild(row);
+  });
+  document.getElementById('btn-okay').classList.add('btn--dim');
+  document.getElementById('btn-okay').style.pointerEvents = 'none';
+  document.getElementById('btn-alert').classList.add('hidden');
+  document.getElementById('btn-cancel').classList.add('hidden');
+}
+
+function showTerminalState() {
+  document.getElementById('today-empty').classList.add('hidden');
+  document.getElementById('today-thread').classList.add('hidden');
+  document.getElementById('alarm-countdown-card').classList.add('hidden');
+  document.getElementById('alarm-escalation-card').classList.add('hidden');
+  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  document.getElementById('btn-okay').classList.add('btn--dim');
+  document.getElementById('btn-okay').style.pointerEvents = 'none';
+  document.getElementById('btn-alert').classList.remove('hidden');
+  document.getElementById('btn-alert').style.opacity = '1';
+  document.getElementById('btn-alert').style.pointerEvents = 'auto';
+  document.getElementById('btn-cancel').classList.add('hidden');
+  document.getElementById('btn-done').classList.remove('hidden');
+}
+
+function showAlarmIdleReset() {
+  document.getElementById('alarm-countdown-card').classList.add('hidden');
+  document.getElementById('alarm-escalation-card').classList.add('hidden');
+  document.getElementById('alarm-terminal-card').classList.add('hidden');
+  document.getElementById('alarm-countdown-num').textContent = '10';
+  const thread = document.getElementById('today-thread');
+  if (thread.innerHTML.trim()) {
+    thread.classList.remove('hidden');
+    document.getElementById('today-empty').classList.add('hidden');
+  } else {
+    document.getElementById('today-empty').classList.remove('hidden');
+  }
+  document.getElementById('btn-okay').style.pointerEvents = '';
+  document.getElementById('btn-alert').classList.remove('hidden');
+  document.getElementById('btn-cancel').classList.add('hidden');
+}
+
+async function commitEscalation(fcmToken) {
+  try {
+    const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
+      body: JSON.stringify({ fcm_token: fcmToken, response: 'alert' }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  } catch (err) {
+    console.error('[Alarm] commitEscalation failed:', err);
+    const warningEl = document.getElementById('msg-today-warning');
+    warningEl.textContent = 'Could not reach the service — escalation may not have started. Tap to retry.';
+    warningEl.classList.remove('hidden');
+    warningEl.style.cursor = 'pointer';
+    warningEl.addEventListener('click', async () => {
+      warningEl.classList.add('hidden');
+      warningEl.style.cursor = '';
+      try {
+        const retryRes = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+          body: JSON.stringify({ fcm_token: fcmToken, response: 'alert' }),
+        });
+        if (!retryRes.ok) throw new Error('HTTP ' + retryRes.status);
+        warningEl.classList.add('hidden');
+      } catch (retryErr) {
+        warningEl.textContent = 'Still unable to reach the service — your contacts may not have been alerted.';
+      }
+    }, { once: true });
+  }
+}
+
 // --- Section 6: Today screen (message display, response POST) ---
 
 let hasResponded = false;
@@ -360,8 +565,11 @@ function showTodayMessage(body, notifData) {
   document.getElementById('btn-done').classList.add('hidden');
 }
 
-function handleEscalationComplete() {
-  // T031 — wired in next phase
+async function handleEscalationComplete() {
+  await setPreference('escalation_state', 'terminal');
+  const { KeepAwake } = Capacitor.Plugins;
+  KeepAwake.allowSleep();
+  showTerminalState();
 }
 
 function initTodayDate() {
@@ -402,37 +610,86 @@ function initTodayActions() {
   });
 
   document.getElementById('btn-alert').addEventListener('click', async () => {
-    hasResponded = true;
-    const timeStr = fmtTime();
-    const thread = document.getElementById('today-thread');
-    thread.insertAdjacentHTML('beforeend', buildBoutRow('ALERT CONTACTS', timeStr));
-    document.getElementById('btn-okay').classList.add('btn--dim');
     const fcmToken = await getPreference('fcm_token');
-    try {
-      const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-        },
-        body: JSON.stringify({ fcm_token: fcmToken, response: 'alert' }),
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-    } catch (err) {
-      console.error('[Today] pwa-respond alert failed:', err);
+    if (!fcmToken) {
+      const warningEl = document.getElementById('msg-today-warning');
+      warningEl.textContent = 'Your device is not fully registered — the alarm cannot be raised right now.';
+      warningEl.classList.remove('hidden');
+      return;
     }
-    thread.insertAdjacentHTML('beforeend', buildIonaCard('Sending an alert to your contacts right away.', fmtTime(), true));
-    document.getElementById('btn-done').classList.remove('hidden');
+    const currentEscState = await getPreference('escalation_state');
+    if (currentEscState === 'active' || currentEscState === 'terminal') return;
+
+    // Step 1 — Immediate local feedback
+    const { KeepAwake } = Capacitor.Plugins;
+    KeepAwake.keepAwake();
+    escalationCountdownValue = getCancelWindowSeconds(memberConfig);
+    showCancelWindowState();
+    await setPreference('escalation_state', 'active');
+
+    // Step 2 — Siren then voice message; countdown starts only after both complete
+    await playAlarmSiren();
+    await playVoiceMessage();
+
+    // Step 3 — Countdown
+    let cancelledByUser = false;
+    const cancelBtn = document.getElementById('btn-cancel');
+
+    function cancelAlarm() {
+      if (cancelledByUser) return;
+      cancelledByUser = true;
+      clearInterval(escalationCountdownTimer);
+      escalationCountdownTimer = null;
+      if (_audioCtx) { try { _audioCtx.close(); } catch (e) {} _audioCtx = null; }
+      setPreference('escalation_state', 'idle');
+      KeepAwake.allowSleep();
+      showAlarmIdleReset();
+    }
+
+    cancelBtn.addEventListener('click', cancelAlarm, { once: true });
+
+    escalationCountdownTimer = setInterval(() => {
+      if (cancelledByUser) { clearInterval(escalationCountdownTimer); return; }
+      escalationCountdownValue--;
+      const numEl = document.getElementById('alarm-countdown-num');
+      numEl.textContent = escalationCountdownValue;
+      numEl.classList.add('pulse');
+      setTimeout(() => numEl.classList.remove('pulse'), 200);
+      playPulseTone();
+      if (escalationCountdownValue <= 0) {
+        clearInterval(escalationCountdownTimer);
+        escalationCountdownTimer = null;
+        cancelBtn.removeEventListener('click', cancelAlarm);
+        if (cancelledByUser) return;
+        // Step 4 — Escalation commits — cancel window closed
+        cancelBtn.classList.add('hidden');
+        showEscalationActiveState();
+        commitEscalation(fcmToken);
+      }
+    }, 1000);
   });
 
-  document.getElementById('btn-done').addEventListener('click', () => {
+  document.getElementById('btn-done').addEventListener('click', async () => {
     hasResponded = false;
+    escalationCountdownTimer = null;
     document.getElementById('btn-okay').classList.add('btn--dim');
+    document.getElementById('btn-okay').style.pointerEvents = '';
+    document.getElementById('btn-alert').classList.remove('hidden');
     document.getElementById('btn-done').classList.add('hidden');
+    document.getElementById('alarm-countdown-card').classList.add('hidden');
+    document.getElementById('alarm-escalation-card').classList.add('hidden');
+    document.getElementById('alarm-terminal-card').classList.add('hidden');
+    document.getElementById('today-thread').classList.add('hidden');
+    document.getElementById('today-empty').classList.remove('hidden');
+    await setPreference('escalation_state', 'idle');
+    const { KeepAwake } = Capacitor.Plugins;
+    KeepAwake.allowSleep();
   });
 }
 
 function initSettings() {
+  // v2 — Settings: theme toggle (day/night). Saves to Preferences, applies dark/light class on launch.
+  // v2 — Settings: button colour toggle ('Iona theme' teal/red vs default white/red). Saves to Preferences, applies btn-theme class on btn-area on launch.
   const overlay = document.getElementById('settings-overlay');
 
   document.getElementById('nav-settings').addEventListener('click', () => {
