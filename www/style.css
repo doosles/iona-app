@@ -824,10 +824,11 @@ button:active {
   background: #0C1C30;
   border: 1.5px solid #E2604A;
   border-radius: 16px;
-  padding: 24px 16px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   text-align: center;
 }
@@ -839,7 +840,7 @@ button:active {
   letter-spacing: 0.1em;
 }
 .alarm-countdown-num {
-  font-size: 64px;
+  font-size: 96px;
   font-weight: 700;
   color: #E2604A;
   font-family: 'JetBrains Mono', monospace;
@@ -910,10 +911,11 @@ button:active {
   background: #0C1C30;
   border: 0.5px solid #2BB682;
   border-radius: 16px;
-  padding: 24px 16px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   text-align: center;
 }

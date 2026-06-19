@@ -78,7 +78,7 @@ let _audioCtx = null;
 
 const ALARM_SIREN_LOW_FREQ = 400;
 const ALARM_SIREN_HIGH_FREQ = 900;
-const ALARM_SIREN_DURATION = 2.0;
+const ALARM_SIREN_DURATION = 5.0;
 const ALARM_SIREN_CYCLES = 3;
 const ALARM_SIREN_TYPE = 'sine';
 const ALARM_PULSE_FREQ = 660;
@@ -120,16 +120,35 @@ function playVoiceMessage() {
   // v2 — replace with: new Audio('https://static.iona.today/audio/alert-message.mp3').play()
   // using a pre-recorded Amy Neural file. Also make "10 seconds" dynamic based on configured cancel window.
   return new Promise((resolve) => {
-    if (!window.speechSynthesis) { resolve(); return; }
+    const ctx = getAudioContext();
+    const fallback = () => {
+      const freqs = [880, 660, 550];
+      freqs.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.type = 'sine';
+        const t = ctx.currentTime + i * 0.4;
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.4, t);
+        g.gain.linearRampToValueAtTime(0, t + 0.3);
+        osc.start(t); osc.stop(t + 0.3);
+      });
+      setTimeout(resolve, freqs.length * 400 + 100);
+    };
+    if (!window.speechSynthesis || speechSynthesis.getVoices().length === 0) {
+      fallback(); return;
+    }
     const msg = new SpeechSynthesisUtterance(
       "This is Iona, you have pressed the alert contacts button, if you do not cancel within 10 seconds we will alert your contacts that you are in need of assistance."
     );
     msg.rate = 0.95;
     msg.pitch = 1.0;
     msg.volume = 1.0;
-    msg.onend = resolve;
-    msg.onerror = resolve;
-    window.speechSynthesis.speak(msg);
+    const fallbackTimer = setTimeout(() => { speechSynthesis.cancel(); fallback(); }, 12000);
+    msg.onend = () => { clearTimeout(fallbackTimer); resolve(); };
+    msg.onerror = () => { clearTimeout(fallbackTimer); fallback(); };
+    speechSynthesis.speak(msg);
   });
 }
 
@@ -452,6 +471,7 @@ function showCancelWindowState() {
 }
 
 function showEscalationActiveState() {
+  show('screen-today');
   document.getElementById('today-empty').classList.add('hidden');
   document.getElementById('today-thread').classList.add('hidden');
   document.getElementById('alarm-countdown-card').classList.add('hidden');
@@ -481,6 +501,7 @@ function showEscalationActiveState() {
 }
 
 function showTerminalState() {
+  show('screen-today');
   document.getElementById('today-empty').classList.add('hidden');
   document.getElementById('today-thread').classList.add('hidden');
   document.getElementById('alarm-countdown-card').classList.add('hidden');
