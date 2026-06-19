@@ -810,6 +810,7 @@ function initSettings() {
 // --- Entry point ---
 
 window.addEventListener('load', async () => {
+  const { SplashScreen } = Capacitor.Plugins;
   try {
     await initMemberstack();
     initSignIn();
@@ -819,6 +820,7 @@ window.addEventListener('load', async () => {
     initTodayActions();
     initSettings();
     await checkSession();
+    try { await SplashScreen.hide({ fadeOutDuration: 500 }); } catch(e) {}
   } catch (err) {
     console.error('[App] Init failed:', err);
   }

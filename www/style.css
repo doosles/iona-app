@@ -391,22 +391,24 @@ button:active {
 
 .today-actions {
   flex-shrink: 0;
-  padding: 12px 20px 0;
+  padding: 10px 14px 10px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 10px;
+  position: relative;
+  z-index: 5;
 }
 
 /* OKAY THANKS — always white background, always red text, both modes */
 
 .btn-okay {
   display: block;
-  width: 100%;
+  flex: 1;
   background: #FFFFFF;
   color: #E2604A;
   border: 1.5px solid #DCE6ED;
   border-radius: 14px;
-  padding: 17px;
+  padding: 28px 10px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -423,12 +425,12 @@ button:active {
 
 .btn-alert {
   display: block;
-  width: 100%;
+  flex: 1;
   background: #E2604A;
   color: #FFFFFF;
   border: none;
   border-radius: 14px;
-  padding: 17px;
+  padding: 28px 10px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -952,20 +954,21 @@ button:active {
 .orb-backdrop-system.hidden-orb { opacity: 0; }
 .orb-backdrop-core {
   position: absolute;
-  width: 160px; height: 160px;
+  width: 200px; height: 200px;
   border-radius: 50%;
   background: radial-gradient(circle at 42% 38%,
-    rgba(87,221,207,0.18) 0%,
-    rgba(19,169,155,0.10) 50%,
+    rgba(87,221,207,0.42) 0%,
+    rgba(19,169,155,0.22) 50%,
     transparent 100%
   );
   transform: translate(-50%, -50%);
+  box-shadow: 0 0 48px rgba(37,201,186,0.18), 0 0 96px rgba(37,201,186,0.08);
   animation: orb-breathe 4.2s ease-in-out infinite;
 }
 .orb-ping {
   position: absolute;
   border-radius: 50%;
-  border: 1.5px solid rgba(37,201,186,0.7);
+  border: 2px solid rgba(55,220,205,1.0);
   transform: translate(-50%, -50%);
   animation: sonic-ping 3.6s ease-out infinite;
 }
@@ -973,12 +976,13 @@ button:active {
 .orb-ping--2 { animation-delay: 1.2s; }
 .orb-ping--3 { animation-delay: 2.4s; }
 @keyframes sonic-ping {
-  0%   { width: 160px; height: 160px; opacity: 0.8; border-width: 1.5px; }
-  100% { width: 320px; height: 320px; opacity: 0; border-width: 0.5px; }
+  0%   { width: 200px; height: 200px; opacity: 1.0; border-width: 2px; }
+  40%  { opacity: 0.6; border-width: 1.5px; }
+  100% { width: 360px; height: 360px; opacity: 0; border-width: 0.5px; }
 }
 @keyframes orb-breathe {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50%       { transform: translate(-50%, -50%) scale(1.06); }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 48px rgba(37,201,186,0.18), 0 0 96px rgba(37,201,186,0.08); }
+  50%       { transform: translate(-50%, -50%) scale(1.06); box-shadow: 0 0 64px rgba(37,201,186,0.28), 0 0 120px rgba(37,201,186,0.12); }
 }
 
 /* --- Return to Iona button --- */
