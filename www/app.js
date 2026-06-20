@@ -140,7 +140,7 @@ function playVoiceMessage() {
       fallback(); return;
     }
     const msg = new SpeechSynthesisUtterance(
-      "This is Iona, you have pressed the alert contacts button, if you do not cancel within 10 seconds we will alert your contacts that you are in need of assistance."
+      "This is Iona. You have pressed the HELP button. If you do not cancel within 10 seconds, we will attempt to call your contacts to let them know you are in need of assistance."
     );
     msg.rate = 0.95;
     msg.pitch = 1.0;
@@ -559,7 +559,7 @@ async function commitEscalation(fcmToken) {
   } catch (err) {
     console.error('[Alarm] commitEscalation failed:', err);
     const warningEl = document.getElementById('msg-today-warning');
-    warningEl.textContent = 'Could not reach the service — escalation may not have started. Tap to retry.';
+    warningEl.textContent = 'Could not reach the service — your contacts may not have been called. Tap to retry.';
     warningEl.classList.remove('hidden');
     warningEl.style.cursor = 'pointer';
     warningEl.addEventListener('click', async () => {
@@ -574,7 +574,7 @@ async function commitEscalation(fcmToken) {
         if (!retryRes.ok) throw new Error('HTTP ' + retryRes.status);
         warningEl.classList.add('hidden');
       } catch (retryErr) {
-        warningEl.textContent = 'Still unable to reach the service — your contacts may not have been alerted.';
+        warningEl.textContent = 'Still unable to reach the service — your contacts may not have been called.';
       }
     }, { once: true });
   }
