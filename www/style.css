@@ -407,9 +407,9 @@ button:active {
 .btn-okay {
   display: block;
   flex: 1;
-  background: #FFFFFF;
-  color: #E2604A;
-  border: 1.5px solid #DCE6ED;
+  background: #0C1C30;
+  color: #25C9BA;
+  border: 1.5px solid #25C9BA;
   border-radius: 14px;
   padding: 28px 10px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
@@ -429,9 +429,9 @@ button:active {
 .btn-alert {
   display: block;
   flex: 1;
-  background: #E2604A;
-  color: #FFFFFF;
-  border: none;
+  background: #0C1C30;
+  color: #E0973A;
+  border: 1.5px solid #E0973A;
   border-radius: 14px;
   padding: 28px 10px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
