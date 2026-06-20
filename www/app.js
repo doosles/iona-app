@@ -107,8 +107,8 @@ function playAlarmSiren() {
       osc.frequency.linearRampToValueAtTime(ALARM_SIREN_HIGH_FREQ, t + cycleDur * 0.5);
       osc.frequency.linearRampToValueAtTime(ALARM_SIREN_LOW_FREQ, t + cycleDur);
     }
-    g.gain.setValueAtTime(0.5, now);
-    g.gain.setValueAtTime(0.5, now + ALARM_SIREN_DURATION - 0.1);
+    g.gain.setValueAtTime(1.0, now);
+    g.gain.setValueAtTime(1.0, now + ALARM_SIREN_DURATION - 0.1);
     g.gain.linearRampToValueAtTime(0, now + ALARM_SIREN_DURATION);
     osc.start(now);
     osc.stop(now + ALARM_SIREN_DURATION);
@@ -165,6 +165,23 @@ function playPulseTone() {
   g.gain.exponentialRampToValueAtTime(0.001, now + ALARM_PULSE_DURATION / 1000);
   osc.start(now);
   osc.stop(now + ALARM_PULSE_DURATION / 1000 + 0.05);
+}
+
+function playArrivalPing() {
+  const c = getAudioContext();
+  const notes = [587, 740, 880];
+  notes.forEach((freq, i) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.connect(g); g.connect(c.destination);
+    osc.type = 'sine';
+    const t = c.currentTime + i * 0.16;
+    osc.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (i === 2 ? 0.6 : 0.35));
+    osc.start(t); osc.stop(t + 0.7);
+  });
 }
 
 // --- Section 3: Auth (Memberstack init, session check, sign-in, logout) ---
@@ -587,6 +604,7 @@ let pendingNotifData = null;
 
 function showTodayMessage(body, notifData) {
   hideOrb();
+  playArrivalPing();
   pendingNotifData = notifData ?? null;
   hasResponded = false;
   const text = body || 'How are you?';
@@ -661,26 +679,28 @@ function initTodayActions() {
     showCancelWindowState();
     await setPreference('escalation_state', 'active');
 
-    // Step 2 — Siren then voice message; countdown starts only after both complete
-    await playAlarmSiren();
-    await playVoiceMessage();
-
-    // Step 3 — Countdown
+    // Step 2 — Cancel is live IMMEDIATELY, before siren/voice play
     let cancelledByUser = false;
     const cancelBtn = document.getElementById('btn-cancel');
 
     function cancelAlarm() {
       if (cancelledByUser) return;
       cancelledByUser = true;
-      clearInterval(escalationCountdownTimer);
-      escalationCountdownTimer = null;
+      if (escalationCountdownTimer) { clearInterval(escalationCountdownTimer); escalationCountdownTimer = null; }
       if (_audioCtx) { try { _audioCtx.close(); } catch (e) {} _audioCtx = null; }
+      try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
       setPreference('escalation_state', 'idle');
       KeepAwake.allowSleep();
       showAlarmIdleReset();
     }
 
     cancelBtn.addEventListener('click', cancelAlarm, { once: true });
+
+    // Step 3 — Siren then voice; abort if cancelled mid-play
+    await playAlarmSiren();
+    if (cancelledByUser) return;
+    await playVoiceMessage();
+    if (cancelledByUser) return;
 
     escalationCountdownTimer = setInterval(() => {
       if (cancelledByUser) { clearInterval(escalationCountdownTimer); return; }
