@@ -412,7 +412,7 @@ function initPushListeners() {
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
     const type = notification.data?.type;
-    if (type === 'scheduled_contact') {
+    if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
       showTodayMessage(notification.notification?.body ?? null, notification.data);
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
@@ -421,7 +421,7 @@ function initPushListeners() {
 
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
     const type = action.notification?.data?.type;
-    if (type === 'scheduled_contact') {
+    if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
       showTodayMessage(action.notification?.notification?.body ?? null, action.notification?.data);
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
