@@ -338,6 +338,9 @@ button:active {
   line-height: 1.5;
 }
 
+.card--oran .iona-msg { color: #E0973A; }
+.orb--oran { background: radial-gradient(circle at 50% 40%, #F5C97B 0%, #E0973A 60%, #BE7926 100%); }
+
 .iona-time {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
@@ -957,12 +960,12 @@ button:active {
   width: 200px; height: 200px;
   border-radius: 50%;
   background: radial-gradient(circle at 42% 38%,
-    rgba(87,221,207,0.42) 0%,
-    rgba(19,169,155,0.22) 50%,
+    rgba(245,201,123,0.42) 0%,
+    rgba(224,151,58,0.22) 50%,
     transparent 100%
   );
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 48px rgba(37,201,186,0.18), 0 0 96px rgba(37,201,186,0.08);
+  box-shadow: 0 0 48px rgba(224,151,58,0.18), 0 0 96px rgba(224,151,58,0.08);
   animation: orb-breathe 4.2s ease-in-out infinite;
 }
 .orb-ping {
@@ -981,8 +984,8 @@ button:active {
   100% { width: 360px; height: 360px; opacity: 0; border-width: 0.5px; }
 }
 @keyframes orb-breathe {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 48px rgba(37,201,186,0.18), 0 0 96px rgba(37,201,186,0.08); }
-  50%       { transform: translate(-50%, -50%) scale(1.06); box-shadow: 0 0 64px rgba(37,201,186,0.28), 0 0 120px rgba(37,201,186,0.12); }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 48px rgba(224,151,58,0.18), 0 0 96px rgba(224,151,58,0.08); }
+  50%       { transform: translate(-50%, -50%) scale(1.06); box-shadow: 0 0 64px rgba(224,151,58,0.28), 0 0 120px rgba(224,151,58,0.12); }
 }
 
 /* --- Return to Iona button --- */

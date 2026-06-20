@@ -46,14 +46,16 @@ function fmtTime() {
   return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-function buildIonaCard(text, timeStr, isReply) {
+function buildIonaCard(text, timeStr, isReply, character) {
+  const who = character === 'oran' ? 'oran' : 'iona';
+  const label = who === 'oran' ? 'Oran' : 'Iona';
   return `
-    <div class="iona-card">
-      <div class="orb ${isReply ? 'orb--sm' : 'orb--lg'}">
+    <div class="iona-card card--${who}">
+      <div class="orb ${isReply ? 'orb--sm' : 'orb--lg'} orb--${who}">
         <div class="orb-ring"></div>
       </div>
       <div class="iona-card-content">
-        <div class="iona-label">Iona · ${isReply ? timeStr : 'Just now'}</div>
+        <div class="iona-label">${label} · ${isReply ? timeStr : 'Just now'}</div>
         <div class="iona-msg">${text}</div>
         ${!isReply ? `<div class="iona-time">${timeStr}</div>` : ''}
       </div>
@@ -610,7 +612,8 @@ function showTodayMessage(body, notifData) {
   const text = body || 'How are you?';
   const timeStr = fmtTime();
   const thread = document.getElementById('today-thread');
-  thread.innerHTML = buildIonaCard(text, timeStr, false);
+  const character = (notifData?.type === 'reminder_1' || notifData?.type === 'reminder_2' || notifData?.type === 'escalation_complete') ? 'oran' : 'iona';
+  thread.innerHTML = buildIonaCard(text, timeStr, false, character);
   document.getElementById('today-empty').classList.add('hidden');
   thread.classList.remove('hidden');
   document.getElementById('btn-okay').classList.remove('btn--dim');
@@ -618,10 +621,18 @@ function showTodayMessage(body, notifData) {
 }
 
 async function handleEscalationComplete() {
+  const savedState = await getPreference('escalation_state');
   await setPreference('escalation_state', 'terminal');
   const { KeepAwake } = Capacitor.Plugins;
   KeepAwake.allowSleep();
-  showTerminalState();
+  if (savedState === 'active' || savedState === 'terminal') {
+    showTerminalState();
+    return;
+  }
+  showTodayMessage(
+    'Attempting to call your contacts to let them know you are in need of assistance.',
+    { type: 'escalation_complete' }
+  );
 }
 
 function initTodayDate() {
