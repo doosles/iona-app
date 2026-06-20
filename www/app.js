@@ -415,7 +415,7 @@ function initPushListeners() {
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
     const type = notification.data?.type;
     if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
-      showTodayMessage(notification.notification?.body ?? null, notification.data);
+      showTodayMessage(notification.body ?? null, notification.data);
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
     }
@@ -424,7 +424,7 @@ function initPushListeners() {
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
     const type = action.notification?.data?.type;
     if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
-      showTodayMessage(action.notification?.notification?.body ?? null, action.notification?.data);
+      showTodayMessage(action.notification?.body ?? null, action.notification?.data);
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
     } else {
@@ -605,6 +605,9 @@ let hasResponded = false;
 let pendingNotifData = null;
 
 function showTodayMessage(body, notifData) {
+  const _thread = document.getElementById('today-thread');
+  const _screen = document.getElementById('screen-today');
+  console.log('[showTodayMessage] body:', body, '| type:', notifData?.type, '| screen-today hidden:', _screen?.classList.contains('hidden'), '| today-thread hidden:', _thread?.classList.contains('hidden'));
   hideOrb();
   playArrivalPing();
   pendingNotifData = notifData ?? null;
