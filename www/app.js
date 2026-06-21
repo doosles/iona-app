@@ -551,7 +551,7 @@ function showAlarmIdleReset() {
   }
   document.getElementById('btn-okay').classList.remove('hidden');
   document.getElementById('btn-okay').classList.add('btn--dim');
-  document.getElementById('btn-okay').style.pointerEvents = '';
+  document.getElementById('btn-okay').style.pointerEvents = 'none';
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-cancel').classList.add('hidden');
   showOrb();
@@ -613,10 +613,17 @@ function showTodayMessage(body, notifData) {
   const timeStr = fmtTime();
   const thread = document.getElementById('today-thread');
   const character = (notifData?.type === 'reminder_1' || notifData?.type === 'reminder_2' || notifData?.type === 'escalation_complete') ? 'oran' : 'iona';
-  thread.innerHTML = buildIonaCard(text, timeStr, false, character);
+  const card = buildIonaCard(text, timeStr, false, character);
+  if (notifData?.type === 'scheduled_contact' || thread.classList.contains('hidden')) {
+    thread.innerHTML = card;
+  } else {
+    thread.insertAdjacentHTML('beforeend', card);
+  }
+  thread.scrollTop = thread.scrollHeight;
   document.getElementById('today-empty').classList.add('hidden');
   thread.classList.remove('hidden');
   document.getElementById('btn-okay').classList.remove('btn--dim');
+  document.getElementById('btn-okay').style.pointerEvents = 'auto';
   document.getElementById('btn-done').classList.add('hidden');
 }
 
@@ -633,6 +640,7 @@ async function handleEscalationComplete() {
     'Attempting to call your contacts to let them know you are in need of assistance.',
     { type: 'escalation_complete' }
   );
+  document.getElementById('btn-done').classList.remove('hidden');
 }
 
 function initTodayDate() {
@@ -747,7 +755,7 @@ function initTodayActions() {
     hasResponded = false;
     escalationCountdownTimer = null;
     document.getElementById('btn-okay').classList.add('btn--dim');
-    document.getElementById('btn-okay').style.pointerEvents = '';
+    document.getElementById('btn-okay').style.pointerEvents = 'none';
     document.getElementById('btn-alert').classList.remove('hidden');
     document.getElementById('btn-done').classList.add('hidden');
     document.getElementById('alarm-countdown-card').classList.add('hidden');
