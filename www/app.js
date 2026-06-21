@@ -543,12 +543,9 @@ function showAlarmIdleReset() {
   document.getElementById('alarm-countdown-num').textContent = '10';
   document.getElementById('btn-alarm-done').classList.add('hidden');
   const thread = document.getElementById('today-thread');
-  if (thread.innerHTML.trim()) {
-    thread.classList.remove('hidden');
-    document.getElementById('today-empty').classList.add('hidden');
-  } else {
-    document.getElementById('today-empty').classList.remove('hidden');
-  }
+  thread.innerHTML = '';
+  thread.classList.add('hidden');
+  document.getElementById('today-empty').classList.remove('hidden');
   document.getElementById('btn-okay').classList.remove('hidden');
   document.getElementById('btn-okay').classList.add('btn--dim');
   document.getElementById('btn-okay').style.pointerEvents = 'none';
@@ -763,6 +760,7 @@ function initTodayActions() {
     document.getElementById('alarm-countdown-card').classList.add('hidden');
     document.getElementById('alarm-escalation-card').classList.add('hidden');
     document.getElementById('alarm-terminal-card').classList.add('hidden');
+    document.getElementById('today-thread').innerHTML = '';
     document.getElementById('today-thread').classList.add('hidden');
     document.getElementById('today-empty').classList.remove('hidden');
     await setPreference('escalation_state', 'idle');
