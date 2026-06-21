@@ -986,6 +986,7 @@ button:active {
   border: 2px solid rgba(55,220,205,1.0);
   transform: translate(-50%, -50%);
   animation: sonic-ping 3.6s ease-out infinite;
+  animation-fill-mode: backwards;
 }
 .orb-ping--1 { animation-delay: 0s; }
 .orb-ping--2 { animation-delay: 1.2s; }
