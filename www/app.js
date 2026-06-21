@@ -486,7 +486,9 @@ function showCancelWindowState() {
   document.getElementById('alarm-countdown-num').textContent = escalationCountdownValue;
   document.getElementById('alarm-countdown-card').classList.remove('hidden');
   document.getElementById('btn-okay').classList.add('hidden');
+  document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-alert').classList.add('hidden');
+  document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.remove('hidden');
   document.getElementById('btn-alarm-done').classList.add('hidden');
 }
@@ -517,7 +519,9 @@ function showEscalationActiveState() {
     list.appendChild(row);
   });
   document.getElementById('btn-okay').classList.add('hidden');
+  document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-alert').classList.add('hidden');
+  document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
   document.getElementById('btn-alarm-done').classList.add('hidden');
 }
@@ -531,7 +535,9 @@ function showTerminalState() {
   document.getElementById('alarm-escalation-card').classList.add('hidden');
   document.getElementById('alarm-terminal-card').classList.remove('hidden');
   document.getElementById('btn-okay').classList.add('hidden');
+  document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-alert').classList.add('hidden');
+  document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
   document.getElementById('btn-done').classList.add('hidden');
   document.getElementById('btn-alarm-done').classList.remove('hidden');
@@ -549,8 +555,10 @@ function showAlarmIdleReset() {
   document.getElementById('today-empty').classList.remove('hidden');
   document.getElementById('btn-okay').classList.remove('hidden');
   document.getElementById('btn-okay').classList.add('btn--dim');
+  document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-okay').style.pointerEvents = 'none';
   document.getElementById('btn-alert').classList.remove('hidden');
+  document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
   showOrb();
 }
@@ -622,6 +630,8 @@ function showTodayMessage(body, notifData) {
   thread.classList.remove('hidden');
   document.getElementById('btn-okay').classList.remove('btn--dim');
   document.getElementById('btn-okay').style.pointerEvents = 'auto';
+  document.getElementById('btn-okay').classList.add('btn--pulse');
+  document.getElementById('btn-alert').classList.add('btn--pulse');
   document.getElementById('btn-done').classList.add('hidden');
 }
 
@@ -659,6 +669,8 @@ function initTodayActions() {
     const thread = document.getElementById('today-thread');
     thread.insertAdjacentHTML('beforeend', buildBoutRow('OKAY THANKS', timeStr));
     document.getElementById('btn-okay').classList.add('btn--dim');
+    document.getElementById('btn-okay').classList.remove('btn--pulse');
+    document.getElementById('btn-alert').classList.remove('btn--pulse');
     const fcmToken = await getPreference('fcm_token');
     try {
       const res = await fetch('https://ferris-causing-shed.ngrok-free.dev/pwa-respond', {
@@ -760,8 +772,10 @@ function initTodayActions() {
     escalationCountdownTimer = null;
     if (escalationTransitionTimer) { clearTimeout(escalationTransitionTimer); escalationTransitionTimer = null; }
     document.getElementById('btn-okay').classList.add('btn--dim');
+    document.getElementById('btn-okay').classList.remove('btn--pulse');
     document.getElementById('btn-okay').style.pointerEvents = 'none';
     document.getElementById('btn-alert').classList.remove('hidden');
+    document.getElementById('btn-alert').classList.remove('btn--pulse');
     document.getElementById('btn-done').classList.add('hidden');
     document.getElementById('alarm-countdown-card').classList.add('hidden');
     document.getElementById('alarm-escalation-card').classList.add('hidden');

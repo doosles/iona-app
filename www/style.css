@@ -304,8 +304,8 @@ button:active {
 /* === Iona message card (always dark navy — both light and dark modes) === */
 
 .iona-card {
-  background: #081424;
-  border: 0.5px solid #1B344F;
+  background: #0C1C30;
+  border: 1.5px solid #25C9BA;
   border-radius: 16px;
   padding: 14px;
   display: flex;
@@ -339,6 +339,7 @@ button:active {
 }
 
 .card--oran .iona-msg { color: #E0973A; }
+.card--oran { border-color: #E0973A; }
 .orb--oran { background: radial-gradient(circle at 50% 40%, #F5C97B 0%, #E0973A 60%, #BE7926 100%); }
 
 .iona-time {
@@ -1015,3 +1016,13 @@ button:active {
   50%  { transform: scale(1.03) }
   100% { transform: scale(1)    }
 }
+@keyframes btnPulseTeal {
+  0%,100% { box-shadow: 0 0 0 rgba(37,201,186,0); transform: scale(1); }
+  50%     { box-shadow: 0 0 16px rgba(37,201,186,0.45); transform: scale(1.025); }
+}
+@keyframes btnPulseAmber {
+  0%,100% { box-shadow: 0 0 0 rgba(224,151,58,0); transform: scale(1); }
+  50%     { box-shadow: 0 0 16px rgba(224,151,58,0.45); transform: scale(1.025); }
+}
+.btn-okay.btn--pulse  { animation: btnPulseTeal  1.6s ease-in-out infinite; }
+.btn-alert.btn--pulse { animation: btnPulseAmber 1.6s ease-in-out infinite; }
