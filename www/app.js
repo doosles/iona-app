@@ -77,6 +77,7 @@ function buildBoutRow(text, timeStr) {
 let escalationCountdownTimer = null;
 let escalationCountdownValue = 0;
 let escalationTransitionTimer = null;
+let _orbFadeInRaf = null;
 let _audioCtx = null;
 
 const ALARM_SIREN_LOW_FREQ = 400;
@@ -248,6 +249,8 @@ async function checkSession() {
     showEscalationActiveState();
   } else if (savedEscState === 'terminal') {
     showTerminalState();
+  } else {
+    showOrb();
   }
 }
 
@@ -271,6 +274,8 @@ async function onLoginSuccess(member) {
     showEscalationActiveState();
   } else if (savedEscState === 'terminal') {
     showTerminalState();
+  } else {
+    showOrb();
   }
 }
 
@@ -569,10 +574,20 @@ function showAlarmIdleReset() {
 }
 
 function hideOrb() {
-  document.getElementById('orb-backdrop-system')?.classList.add('hidden-orb');
+  if (_orbFadeInRaf) { cancelAnimationFrame(_orbFadeInRaf); _orbFadeInRaf = null; }
+  const orb = document.getElementById('orb-backdrop-system');
+  if (!orb) return;
+  orb.classList.remove('orb--on');
+  orb.classList.add('hidden-orb');
 }
 function showOrb() {
-  document.getElementById('orb-backdrop-system')?.classList.remove('hidden-orb');
+  const orb = document.getElementById('orb-backdrop-system');
+  if (!orb) return;
+  orb.classList.remove('hidden-orb');
+  _orbFadeInRaf = requestAnimationFrame(() => {
+    _orbFadeInRaf = null;
+    orb.classList.add('orb--on');
+  });
 }
 
 async function commitEscalation(fcmToken) {
