@@ -417,6 +417,8 @@ function initPushListeners() {
     const type = notification.data?.type;
     if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
       showTodayMessage(notification.body ?? notification.notification?.body ?? null, notification.data);
+    } else if (type === 'escalation_started') {
+      showEscalationActiveState();
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
     }
@@ -426,6 +428,8 @@ function initPushListeners() {
     const type = action.notification?.data?.type;
     if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
       showTodayMessage(action.notification?.body ?? action.notification?.notification?.body ?? null, action.notification?.data);
+    } else if (type === 'escalation_started') {
+      showEscalationActiveState();
     } else if (type === 'escalation_complete') {
       handleEscalationComplete();
     } else {
