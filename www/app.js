@@ -644,15 +644,7 @@ async function handleEscalationComplete() {
     showTerminalState();
     return;
   }
-  showTodayMessage(
-    'Attempting to call your contacts to let them know you are in need of assistance.',
-    { type: 'escalation_complete' }
-  );
-  document.getElementById('btn-done').classList.remove('hidden');
-  escalationTransitionTimer = setTimeout(() => {
-    escalationTransitionTimer = null;
-    showEscalationActiveState();
-  }, 12000);
+  showTerminalState();
 }
 
 function initTodayDate() {
