@@ -949,7 +949,7 @@ button:active {
 
 .orb-backdrop-system {
   position: absolute;
-  top: 44%; left: 50%;
+  top: 41%; left: 50%;
   transform: translate(-50%, -50%);
   width: 0; height: 0;
   z-index: 1;
