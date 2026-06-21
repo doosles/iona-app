@@ -76,6 +76,7 @@ function buildBoutRow(text, timeStr) {
 
 let escalationCountdownTimer = null;
 let escalationCountdownValue = 0;
+let escalationTransitionTimer = null;
 let _audioCtx = null;
 
 const ALARM_SIREN_LOW_FREQ = 400;
@@ -638,6 +639,10 @@ async function handleEscalationComplete() {
     { type: 'escalation_complete' }
   );
   document.getElementById('btn-done').classList.remove('hidden');
+  escalationTransitionTimer = setTimeout(() => {
+    escalationTransitionTimer = null;
+    showEscalationActiveState();
+  }, 12000);
 }
 
 function initTodayDate() {
@@ -753,6 +758,7 @@ function initTodayActions() {
   document.getElementById('btn-done').addEventListener('click', async () => {
     hasResponded = false;
     escalationCountdownTimer = null;
+    if (escalationTransitionTimer) { clearTimeout(escalationTransitionTimer); escalationTransitionTimer = null; }
     document.getElementById('btn-okay').classList.add('btn--dim');
     document.getElementById('btn-okay').style.pointerEvents = 'none';
     document.getElementById('btn-alert').classList.remove('hidden');
