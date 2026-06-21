@@ -614,12 +614,12 @@ function showTodayMessage(body, notifData) {
   const thread = document.getElementById('today-thread');
   const character = (notifData?.type === 'reminder_1' || notifData?.type === 'reminder_2' || notifData?.type === 'escalation_complete') ? 'oran' : 'iona';
   const card = buildIonaCard(text, timeStr, false, character);
-  if (notifData?.type === 'scheduled_contact' || thread.classList.contains('hidden')) {
+  if (notifData?.type === 'scheduled_contact') {
     thread.innerHTML = card;
   } else {
     thread.insertAdjacentHTML('beforeend', card);
   }
-  thread.scrollTop = thread.scrollHeight;
+  requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
   document.getElementById('today-empty').classList.add('hidden');
   thread.classList.remove('hidden');
   document.getElementById('btn-okay').classList.remove('btn--dim');
@@ -673,9 +673,11 @@ function initTodayActions() {
         ? data.confirmation
         : 'Great to hear this. I will be in touch again soon.';
       thread.insertAdjacentHTML('beforeend', buildIonaCard(confirmText, fmtTime(), true));
+      requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
     } catch (err) {
       console.error('[Today] pwa-respond failed:', err);
       thread.insertAdjacentHTML('beforeend', buildIonaCard('We couldn\'t send your response — please try again.', fmtTime(), true));
+      requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
     }
     document.getElementById('btn-done').classList.remove('hidden');
   });
