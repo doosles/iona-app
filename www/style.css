@@ -205,6 +205,9 @@ button:active {
 .today-topbar {
   flex-shrink: 0;
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 20px 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
 }
 
 .wordmark-today {
@@ -216,11 +219,9 @@ button:active {
   letter-spacing: -0.2px;
 }
 
-/* Date line */
+/* Date — inline in topbar, right-aligned */
 
 .today-date {
-  flex-shrink: 0;
-  padding: 0 20px 12px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 400;
@@ -332,13 +333,19 @@ button:active {
 
 .iona-msg {
   font-family: 'Dancing Script', cursive;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: #25C9BA;
   line-height: 1.5;
 }
 
-.card--oran .iona-msg { color: #E0973A; }
+.card--oran .iona-msg {
+  font-family: 'Eagle Lake', cursive;
+  font-size: 18px;
+  font-weight: 400;
+  color: #E0973A;
+  line-height: 1.5;
+}
 .card--oran { border-color: #E0973A; }
 .orb--oran { background: radial-gradient(circle at 50% 40%, #F5C97B 0%, #E0973A 60%, #BE7926 100%); }
 

@@ -499,6 +499,7 @@ function showCancelWindowState() {
 
 function showEscalationActiveState() {
   show('screen-today');
+  playArrivalPing();
   hideOrb();
   document.getElementById('today-empty').classList.add('hidden');
   document.getElementById('today-thread').classList.add('hidden');
@@ -619,7 +620,10 @@ function showTodayMessage(body, notifData) {
   playArrivalPing();
   pendingNotifData = notifData ?? null;
   hasResponded = false;
-  const text = body || notifData?.msg || 'How are you?';
+  let text = body || notifData?.msg || 'How are you?';
+  if (notifData?.type === 'reminder_2') {
+    text = text.replace('OKAY THANKS', '<span style="color:#25C9BA">OKAY THANKS</span>');
+  }
   const timeStr = fmtTime();
   const thread = document.getElementById('today-thread');
   const character = (notifData?.type === 'reminder_1' || notifData?.type === 'reminder_2' || notifData?.type === 'escalation_complete') ? 'oran' : 'iona';
@@ -653,7 +657,7 @@ async function handleEscalationComplete() {
 
 function initTodayDate() {
   const d = new Date();
-  const label = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' });
   document.getElementById('today-date').textContent = label;
 }
 
