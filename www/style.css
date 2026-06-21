@@ -836,7 +836,7 @@ button:active {
 
 .alarm-countdown-card {
   background: #0C1C30;
-  border: 1.5px solid #E2604A;
+  border: 1.5px solid #E0973A;
   border-radius: 16px;
   flex: 1;
   display: flex;
@@ -849,7 +849,7 @@ button:active {
 .alarm-countdown-label {
   font-size: 11px;
   font-weight: 700;
-  color: #E2604A;
+  color: #E0973A;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -874,7 +874,7 @@ button:active {
   width: 100%;
   padding: 17px;
   background: none;
-  border: 1.5px solid #E2604A;
+  border: 1.5px solid #E0973A;
   border-radius: 14px;
   color: #E2604A;
   font-size: 14px;
@@ -885,6 +885,7 @@ button:active {
   font-family: inherit;
   -webkit-appearance: none;
   appearance: none;
+  animation: btnPulseAmber 1.6s ease-in-out infinite;
 }
 .alarm-escalation-card {
   background: #0C1C30;
