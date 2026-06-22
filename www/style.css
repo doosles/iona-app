@@ -13,6 +13,8 @@
   --teal-deep: #13A99B;
   --radius: 12px;
   --min-touch: 48px;
+  --orb-size: clamp(140px, 52vw, 200px);
+  --ping-max: min(440px, 88vw);
 }
 
 body.light {
@@ -969,7 +971,7 @@ button:active {
 .orb-backdrop-system.hidden-orb { opacity: 0; }
 .orb-backdrop-core {
   position: absolute;
-  width: 200px; height: 200px;
+  width: var(--orb-size); height: var(--orb-size);
   border-radius: 50%;
   background: radial-gradient(circle at 38% 32%,
     #FCEFD3 0%,
@@ -992,9 +994,9 @@ button:active {
 .orb-ping--1 { animation-delay: 0s; }
 .orb-ping--2 { animation-delay: 1.4s; }
 @keyframes sonic-ping {
-  0%   { width: 200px; height: 200px; opacity: 0; }
+  0%   { width: var(--orb-size); height: var(--orb-size); opacity: 0; }
   12%  { opacity: 0.6; }
-  100% { width: 440px; height: 440px; opacity: 0; }
+  100% { width: var(--ping-max); height: var(--ping-max); opacity: 0; }
 }
 @keyframes orb-breathe {
   0%, 100% { transform: translate(-50%, -50%) scale(1);    filter: brightness(1);    box-shadow: 0 0 18px rgba(37,201,186,0.45), 0 0 44px rgba(37,201,186,0.22); }

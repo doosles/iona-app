@@ -250,7 +250,7 @@ async function checkSession() {
   } else if (savedEscState === 'terminal') {
     showTerminalState();
   } else {
-    showOrb();
+    setTimeout(() => { if (!launchedFromPush) showOrb(); }, 400);
   }
 }
 
@@ -275,7 +275,7 @@ async function onLoginSuccess(member) {
   } else if (savedEscState === 'terminal') {
     showTerminalState();
   } else {
-    showOrb();
+    setTimeout(() => { if (!launchedFromPush) showOrb(); }, 400);
   }
 }
 
@@ -396,6 +396,7 @@ function initLogout() {
 // --- Section 4: Push registration (FCM listeners, register, backend POST) ---
 
 let pushRegistrationPending = false;
+let launchedFromPush = false;
 
 function initPushListeners() {
   const { PushNotifications } = Capacitor.Plugins;
@@ -432,6 +433,7 @@ function initPushListeners() {
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
     const type = action.notification?.data?.type;
     if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
+      launchedFromPush = true;
       showTodayMessage(action.notification?.body ?? action.notification?.notification?.body ?? null, action.notification?.data);
     } else if (type === 'escalation_started') {
       showEscalationActiveState();
