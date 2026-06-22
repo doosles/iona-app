@@ -213,12 +213,10 @@ button:active {
 }
 
 .wordmark-today {
-  font-family: 'Newsreader', Georgia, serif;
-  font-style: italic;
-  font-size: 18px;
-  font-weight: 400;
-  color: var(--teal);
-  letter-spacing: -0.2px;
+  font-family: 'Dancing Script', cursive;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--teal-glow);
 }
 
 /* Date — inline in topbar, right-aligned */
