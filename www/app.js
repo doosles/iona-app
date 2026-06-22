@@ -682,8 +682,11 @@ function initTodayActions() {
   document.getElementById('btn-okay').addEventListener('click', async () => {
     if (hasResponded) return;
     hasResponded = true;
+    const tapTime = Date.now();
+    const REPLY_DELAY_MS = 1000;
     const timeStr = fmtTime();
     const thread = document.getElementById('today-thread');
+    // Instant button feedback — tap registers immediately
     thread.insertAdjacentHTML('beforeend', buildBoutRow('OKAY THANKS', timeStr));
     document.getElementById('btn-okay').classList.add('btn--dim');
     document.getElementById('btn-okay').classList.remove('btn--pulse');
@@ -703,10 +706,17 @@ function initTodayActions() {
       const confirmText = data.confirmation
         ? data.confirmation
         : 'Great to hear this. I will be in touch again soon.';
+      // Hold until REPLY_DELAY_MS from tap — feels like Iona responding, not a system ack
+      const remaining = Math.max(0, REPLY_DELAY_MS - (Date.now() - tapTime));
+      await new Promise(r => setTimeout(r, remaining));
+      playArrivalPing();
       thread.insertAdjacentHTML('beforeend', buildIonaCard(confirmText, fmtTime(), true));
       requestAnimationFrame(() => { const m = document.getElementById('today-messages'); m.scrollTop = m.scrollHeight; });
     } catch (err) {
       console.error('[Today] pwa-respond failed:', err);
+      const remaining = Math.max(0, REPLY_DELAY_MS - (Date.now() - tapTime));
+      await new Promise(r => setTimeout(r, remaining));
+      playArrivalPing();
       thread.insertAdjacentHTML('beforeend', buildIonaCard('We couldn\'t send your response — please try again.', fmtTime(), true));
       requestAnimationFrame(() => { const m = document.getElementById('today-messages'); m.scrollTop = m.scrollHeight; });
     }
