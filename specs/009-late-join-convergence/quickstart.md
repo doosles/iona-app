@@ -51,10 +51,11 @@ arrives app-side. (Full card/copy behaviour is build scope; the spike proves the
 ## Stage 4 — report
 
 Findings note to the captain (vault, `cc_findings_009_spike_join_confirmation_<date>.md`):
-latency table (wifi/cellular), reliability/R8 verdict line (MATERIAL / NOT-MATERIAL for ngrok on
-this safety path — VPS interaction named, not resolved), window verdict (8s confirmed/moved),
-empty-room + anchor observations (R2 flags), anything not covered by R0 — flagged. **No live-path
-adoption, no [BUILD] tasks, until the captain rules on this note.**
+latency table (wifi/cellular), window verdict (8s confirmed/moved), empty-room + anchor
+observations (R2 flags), anything not covered by R0 — flagged. R8 measurement caveat (one line):
+numbers travelled over ngrok — outliers attributed (tunnel vs mechanism), and a window that holds
+over free ngrok holds with margin on the committed VPS. **No live-path adoption, no [BUILD]
+tasks, until the captain rules on this note.**
 
 ## Folded-in owner pin run (R-008.1-3 — same device days, no separate session)
 

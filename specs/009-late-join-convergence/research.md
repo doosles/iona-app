@@ -133,12 +133,14 @@ Named so `/speckit.tasks` can carry each as an explicit task with a regression c
 5. **Hands-free clip-cache exclusion** (`_saIsSignal` gate at :3686) — deleted (R6).
 Each deletion lands with a matrix/harness check proving no dormant second system remains (SC-009).
 
-## R8 — Delivery-path honesty (R0.5)
+## R8 — Delivery-path measurement caveat (downgraded by captain, 14 Jul)
 
-The spike logs, for every conference event: send→arrival latency (Twilio timestamp vs server
-clock), missing/duplicate SequenceNumbers, and any ngrok resets during runs. Reported plainly in
-the findings note with a MATERIAL / NOT-MATERIAL verdict line for the tunnel on this safety path;
-the VPS-cutover interaction is named and left as captain scope.
+The VPS cutover is already a committed pre-launch item — there is no "is ngrok material" decision
+to make, so R8 carries NO verdict line and the VPS interaction is NOT captain scope. What remains
+is a one-line measurement caveat in the findings: the spike's latency numbers travel over the
+ngrok tunnel, so any weird outlier run is ATTRIBUTED (tunnel artifact vs mechanism) rather than
+left to look like a design flaw. The flip side works in the design's favour: an 8-second window
+validated over free ngrok holds with margin on a proper VPS — production only gets faster.
 
 ## R9 — Story 4 (ships inside 009; severable; Flag 5)
 
