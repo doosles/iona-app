@@ -1,1 +1,11 @@
 node_modules/
+.env
+*.env
+*.pem
+*.key
+*_key.json
+*service-account*.json
+.DS_Store
+**/.DS_Store
+build/
+.gradle/
