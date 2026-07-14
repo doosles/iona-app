@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CC WebRTC Spike</title>
+  <script src="https://unpkg.com/@twilio/voice-sdk/dist/twilio.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; font-size: 13px; background: #0d0d0d; color: #ccc; padding: 20px; }
+    h2 { color: #34ECD9; margin-bottom: 16px; font-size: 15px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    button {
+      background: #1c1c1c; border: 1px solid #333; color: #ccc;
+      padding: 10px 16px; border-radius: 6px; font-family: monospace;
+      font-size: 13px; cursor: pointer; flex-shrink: 0;
+    }
+    button:active { background: #2a2a2a; }
+    button:disabled { opacity: 0.35; cursor: default; }
+    button.green { border-color: #34ECD9; color: #34ECD9; }
+    button.red   { border-color: #ff5555; color: #ff5555; }
+    #status {
+      background: #111; border: 1px solid #222; border-radius: 6px;
+      padding: 10px 14px; margin-bottom: 12px; color: #34ECD9; font-size: 14px;
+    }
+    #log {
+      background: #111; border: 1px solid #222; border-radius: 6px;
+      padding: 10px 14px; height: 280px; overflow-y: auto; font-size: 11px; color: #aaa;
+    }
+    #log p { margin-bottom: 3px; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; }
+    .back { display: block; margin-top: 16px; color: #555; text-decoration: none; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h2>CC WebRTC Spike</h2>
+
+  <div id="status">idle — tap Join to start</div>
+
+  <div class="row">
+    <button id="btnJoin"   class="green">Join Conference</button>
+    <button id="btnHangup" class="red" disabled>Hang Up</button>
+  </div>
+  <div class="row">
+    <button id="btnSpkOn">Speaker ON</button>
+    <button id="btnSpkOff">Speaker OFF</button>
+  </div>
+  <p style="font-size:11px;color:#555;margin-bottom:12px">
+    To add contact PSTN leg: <code>python3 bridge_call_test.py</code> (change CONF_NAME to cc-poc-2)
+  </p>
+
+  <div id="log"></div>
+  <a href="/" class="back">← back</a>
+
+  <script>
+    // ── Config ────────────────────────────────────────────────────────────────
+    const NGROK     = 'https://ferris-causing-shed.ngrok-free.dev';
+    const CONF_NAME = 'cc-poc-2';
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const ZeroCall = window.Capacitor?.Plugins?.ZeroCall;
+    const logEl    = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    const btnJoin   = document.getElementById('btnJoin');
+    const btnHangup = document.getElementById('btnHangup');
+
+    function log(msg) {
+      const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      const p = document.createElement('p');
+      p.textContent = `[${ts}] ${msg}`;
+      logEl.prepend(p);
+      console.log('[CC]', msg);
+    }
+
+    function setStatus(s) { statusEl.textContent = s; }
+
+    // ── Speaker via ZeroCallPlugin ─────────────────────────────────────────
+    function setSpeaker(on) {
+      if (!ZeroCall) { log('⚠ ZeroCall plugin not available (not in Capacitor?)'); return; }
+      ZeroCall.setSpeaker({ on, delayMs: 0 })
+        .then(r => log(`speaker → ${JSON.stringify(r)}`))
+        .catch(e => log(`speaker error: ${e}`));
+    }
+
+    document.getElementById('btnSpkOn').addEventListener('click', () => setSpeaker(true));
+    document.getElementById('btnSpkOff').addEventListener('click', () => setSpeaker(false));
+
+    // ── Join conference via WebRTC ─────────────────────────────────────────
+    btnJoin.addEventListener('click', async () => {
+      btnJoin.disabled = true;
+      setStatus('fetching token…');
+      log('Fetching access token…');
+      try {
+        if (!ZeroCall) { log('ZeroCall plugin not found — cannot fetch token natively'); btnJoin.disabled = false; return; }
+        const native = await ZeroCall.fetchToken({ url: `${NGROK}/twilio/voice-token?identity=cc-user` });
+        log(`Token HTTP ${native.status}`);
+        if (native.status !== 200) {
+          log(`Token error: ${native.body.slice(0, 120)}`);
+          setStatus('token fetch failed');
+          btnJoin.disabled = false;
+          return;
+        }
+        const { token, identity } = JSON.parse(native.body);
+        log(`Token OK  identity=${identity}`);
+        setStatus('registering…');
+
+        // v2.x — backend calls the client (incoming), app auto-accepts
+        const device = new Twilio.Device(token, { codecPreferences: ['opus', 'pcmu'] });
+
+        device.on('error', (e) => {
+          log(`Device error: ${e.message}`);
+          setStatus('device error');
+          btnJoin.disabled = false;
+        });
+
+        device.on('incoming', (call) => {
+          log('Incoming call from backend — accepting…');
+          call.accept();
+
+          call.on('accept', () => {
+            log('✅ Connected — enabling speaker automatically');
+            setStatus('connected (WebRTC)');
+            btnHangup.disabled = false;
+            setSpeaker(true);
+          });
+
+          call.on('disconnect', () => {
+            log('Disconnected');
+            setStatus('idle');
+            btnHangup.disabled = true;
+            btnJoin.disabled = false;
+            setSpeaker(false);
+          });
+
+          call.on('error', (e) => {
+            log(`Call error: ${e.message}`);
+            setStatus('error — see log');
+            btnJoin.disabled = false;
+          });
+
+          window._twilioCall = call;
+        });
+
+        await device.register();
+        log('Registered — waiting 2s for signalling to settle…');
+        await new Promise(r => setTimeout(r, 2000));
+        log('Signalling backend to call this client…');
+        setStatus('waiting for backend call…');
+
+        // Tell backend to call client:cc-user → conference
+        const callResp = await ZeroCall.fetchToken({
+          url: `${NGROK}/twilio/call-client?identity=${identity}&conference_name=${CONF_NAME}`,
+        });
+        const callBody = JSON.parse(callResp.body);
+        if (callResp.status !== 200) {
+          log(`Backend call failed: ${callBody.error}`);
+          setStatus('error');
+          btnJoin.disabled = false;
+        } else {
+          log(`Backend called client — SID: ${callBody.sid}`);
+        }
+
+        window._twilioDevice = device;
+
+      } catch (e) {
+        log(`Join failed: ${e}`);
+        setStatus('error');
+        btnJoin.disabled = false;
+      }
+    });
+
+    // ── Hang up ────────────────────────────────────────────────────────────
+    btnHangup.addEventListener('click', () => {
+      if (window._twilioCall) window._twilioCall.disconnect();
+      log('Hung up');
+    });
+
+    // ── ZeroCall event listeners (speaker_result from plugin) ─────────────
+    if (ZeroCall) {
+      ZeroCall.addListener('speaker_result', (r) => log(`speaker_result: ${JSON.stringify(r)}`));
+    }
+
+    log('Page loaded. ZeroCall plugin: ' + (ZeroCall ? 'FOUND' : 'not found'));
+  </script>
+</body>
+</html>

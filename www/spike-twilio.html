@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Twilio Native SDK Spike</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; font-size: 13px; background: #0d0d0d; color: #ccc; padding: 20px; }
+    h2 { color: #34ECD9; margin-bottom: 4px; font-size: 15px; }
+    .sub { color: #555; font-size: 11px; margin-bottom: 16px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    button {
+      background: #1c1c1c; border: 1px solid #333; color: #ccc;
+      padding: 10px 18px; border-radius: 6px; font-family: monospace;
+      font-size: 13px; cursor: pointer;
+    }
+    button.green { border-color: #34ECD9; color: #34ECD9; }
+    button.red   { border-color: #ff5555; color: #ff5555; }
+    button:disabled { opacity: 0.35; cursor: default; }
+    #status {
+      background: #111; border: 1px solid #222; border-radius: 6px;
+      padding: 10px 14px; margin-bottom: 12px; color: #34ECD9; font-size: 14px;
+    }
+    .divider { color: #333; font-size: 11px; margin: 8px 0 4px; }
+    #log {
+      background: #111; border: 1px solid #222; border-radius: 6px;
+      padding: 10px 14px; height: 300px; overflow-y: auto; font-size: 11px; color: #aaa;
+    }
+    #log p { margin-bottom: 3px; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; }
+    .ok  { color: #34ECD9; }
+    .err { color: #ff5555; }
+    .back { display: block; margin-top: 16px; color: #555; text-decoration: none; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h2>Native Twilio SDK — Speaker Proof</h2>
+  <p class="sub">Step 1: Register &nbsp;|&nbsp; Step 2: Call Out → trigger PSTN contact from Mac</p>
+
+  <div id="status">idle</div>
+
+  <p class="divider">── outbound (immediate test — no FCM needed) ──</p>
+  <div class="row">
+    <button id="btnCall" class="green">Call Out (bidirectional)</button>
+    <button id="btnHangup" class="red" disabled>Hang Up</button>
+  </div>
+
+  <p class="divider">── incoming via FCM (needs push credential) ──</p>
+  <div class="row">
+    <button id="btnRegister">Register for FCM calls</button>
+  </div>
+
+  <div id="log"></div>
+  <a href="/" class="back">← back</a>
+
+  <script>
+    const NGROK     = 'https://ferris-causing-shed.ngrok-free.dev';
+    const CONF_NAME = 'speaker-proof-1';
+
+    const ZeroCall    = window.Capacitor?.Plugins?.ZeroCall;
+    const TwilioVoice = window.Capacitor?.Plugins?.TwilioVoice;
+    const logEl       = document.getElementById('log');
+    const statusEl    = document.getElementById('status');
+    const btnCall     = document.getElementById('btnCall');
+    const btnHangup   = document.getElementById('btnHangup');
+    const btnRegister = document.getElementById('btnRegister');
+
+    function log(msg, cls) {
+      const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      const p = document.createElement('p');
+      if (cls) p.className = cls;
+      p.textContent = `[${ts}] ${msg}`;
+      logEl.prepend(p);
+      console.log('[TwilioNative]', msg);
+    }
+
+    function setStatus(s) { statusEl.textContent = s; }
+
+    log('ZeroCall: '    + (ZeroCall    ? 'FOUND' : 'MISSING'));
+    log('TwilioVoice: ' + (TwilioVoice ? 'FOUND' : 'MISSING'));
+
+    if (TwilioVoice) {
+      TwilioVoice.addListener('incoming', (e) => {
+        log('INCOMING from: ' + e.from + ' — auto-accepting', 'ok');
+        setStatus('incoming — auto-accepting...');
+      });
+      TwilioVoice.addListener('connected', (e) => {
+        log('CONNECTED — speaker auto-routed', 'ok');
+        setStatus('connected ✓ — listening for bidirectional audio');
+        btnHangup.disabled = false;
+        btnCall.disabled = true;
+      });
+      TwilioVoice.addListener('disconnected', (e) => {
+        log('disconnected' + (e.error ? ': ' + e.error : ''));
+        setStatus('idle — call ended');
+        btnHangup.disabled = true;
+        btnCall.disabled = false;
+      });
+      TwilioVoice.addListener('error', (e) => {
+        log('ERROR: ' + e.error, 'err');
+        setStatus('error — see log');
+        btnCall.disabled = false;
+      });
+      TwilioVoice.addListener('speaker_result', (e) => {
+        log('speaker → ok=' + e.ok + ' mode=' + e.mode + ' api=' + e.api,
+            e.ok ? 'ok' : 'err');
+      });
+    }
+
+    // ── Outbound call (no FCM needed) ─────────────────────────────────────
+    btnCall.addEventListener('click', async () => {
+      btnCall.disabled = true;
+      setStatus('fetching token...');
+      try {
+        if (!ZeroCall || !TwilioVoice) {
+          log('Plugin missing', 'err'); btnCall.disabled = false; return;
+        }
+        log('Fetching access token...');
+        const resp = await ZeroCall.fetchToken({
+          url: `${NGROK}/twilio/voice-token?identity=cc-user`
+        });
+        if (resp.status !== 200) {
+          log('Token fetch failed ' + resp.status + ': ' + resp.body.slice(0, 80), 'err');
+          setStatus('token failed'); btnCall.disabled = false; return;
+        }
+        const { token } = JSON.parse(resp.body);
+        log('Token OK');
+        setStatus('connecting outbound...');
+
+        await TwilioVoice.connectOutbound({
+          accessToken: token,
+          conferenceName: CONF_NAME
+        });
+        log('Outbound connect initiated — waiting for connected event');
+        setStatus('dialing...');
+
+      } catch (e) {
+        log('Call failed: ' + e, 'err');
+        setStatus('error'); btnCall.disabled = false;
+      }
+    });
+
+    // ── Hang up ───────────────────────────────────────────────────────────
+    btnHangup.addEventListener('click', async () => {
+      if (TwilioVoice) await TwilioVoice.hangup({});
+      log('Hung up');
+    });
+
+    // ── Register for FCM incoming (needs push credential) ─────────────────
+    btnRegister.addEventListener('click', async () => {
+      btnRegister.disabled = true;
+      setStatus('fetching token for FCM registration...');
+      try {
+        if (!ZeroCall || !TwilioVoice) {
+          log('Plugin missing', 'err'); btnRegister.disabled = false; return;
+        }
+        const resp = await ZeroCall.fetchToken({
+          url: `${NGROK}/twilio/voice-token?identity=cc-user`
+        });
+        if (resp.status !== 200) {
+          log('Token failed ' + resp.status, 'err');
+          setStatus('token failed'); btnRegister.disabled = false; return;
+        }
+        const { token, identity } = JSON.parse(resp.body);
+        log('Token OK  identity=' + identity);
+        setStatus('registering for FCM...');
+
+        const reg = await TwilioVoice.register({ accessToken: token });
+        log('FCM registered  fcmPrefix=' + reg.fcmPrefix, 'ok');
+        setStatus('registered — waiting for FCM call (trigger from Mac)');
+
+      } catch (e) {
+        log('Register failed: ' + e, 'err');
+        setStatus('error'); btnRegister.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

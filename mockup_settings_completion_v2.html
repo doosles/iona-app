@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iona — Settings completion mockup v1 (Service · Account · Plan)</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal-50:#E7FBF7; --teal-100:#C3F5ED; --teal-200:#92ECE0; --teal-400:#25C9BA;
+  --teal-500:#13A99B; --teal-600:#0E867A;
+  --amber-100:#FCEFD3; --amber-500:#E0973A;
+  --mist-0:#FFFFFF; --mist-50:#F6F8F8; --mist-100:#EDF1F1; --mist-200:#DEE6E6;
+  --mist-300:#C6D2D2; --mist-500:#7E9494; --mist-700:#4A5D5D; --ink-900:#132020;
+  --bg-page:var(--mist-50); --surface-card:var(--mist-0);
+  --text-primary:var(--ink-900); --text-secondary:var(--mist-700); --text-muted:var(--mist-500);
+  --border-subtle:var(--mist-200); --border-default:var(--mist-300);
+  --accent:var(--teal-500); --accent-hover:var(--teal-600); --accent-soft:var(--teal-50); --accent-border:var(--teal-200);
+  --radius:14px; --focus-ring:color-mix(in srgb, var(--teal-400) 55%, transparent);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hanken Grotesk',system-ui,sans-serif;background:#9FB0B0;display:flex;justify-content:center;padding:24px 8px;color:var(--text-primary);}
+.phone{width:390px;max-width:100%;background:var(--bg-page);border-radius:28px;overflow:hidden;box-shadow:0 18px 50px rgba(19,32,32,.35);display:flex;flex-direction:column;min-height:780px;}
+.app-head{padding:20px 20px 4px;}
+.app-head h1{font-size:21px;font-weight:600;}
+.screen{padding:12px 16px 28px;flex:1;}
+.tabs{display:flex;background:var(--mist-100);border-radius:100px;padding:4px;margin-bottom:16px;}
+.tabs button{flex:1;height:42px;border:none;border-radius:100px;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--text-muted);cursor:pointer;}
+.tabs button.on{background:var(--surface-card);color:var(--accent);box-shadow:0 1px 4px rgba(19,32,32,.10);}
+.card{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px;margin-bottom:12px;}
+.card h2{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+.fld-lbl{display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px;}
+.fld-lbl:first-of-type{margin-top:0;}
+.txt-inp,.drp{width:100%;height:50px;padding:0 14px;font:inherit;font-size:16px;border:1px solid var(--border-default);border-radius:12px;background:var(--surface-card);color:var(--text-primary);}
+.txt-inp:focus,.drp:focus{outline:3px solid var(--focus-ring);border-color:var(--teal-400);}
+.txt-inp[readonly]{background:var(--mist-100);color:var(--text-muted);border-color:var(--border-subtle);}
+.ph-row{display:flex;gap:8px;}
+.ph-prfx{width:132px;flex-shrink:0;text-overflow:ellipsis;}
+.seg{display:flex;gap:6px;}
+.seg button{flex:1;height:48px;border:1px solid var(--border-default);border-radius:12px;background:var(--surface-card);font:inherit;font-size:14px;font-weight:600;color:var(--text-secondary);cursor:pointer;}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+.plan-card{display:flex;align-items:center;gap:14px;}
+.plan-badge{width:46px;height:46px;border-radius:50%;background:var(--accent-soft);border:1px solid var(--accent-border);display:flex;align-items:center;justify-content:center;font-size:22px;}
+.plan-name{font-size:18px;font-weight:700;}
+.plan-sub{font-size:13px;color:var(--text-muted);margin-top:2px;}
+.plan-manage{font-size:13px;color:var(--text-muted);margin-top:10px;}
+.note{font-size:13px;color:var(--text-muted);margin-top:8px;}
+.sv-btn{width:100%;height:52px;border:none;border-radius:100px;margin-top:4px;background:var(--accent);color:#fff;font:inherit;font-size:16px;font-weight:600;cursor:pointer;}
+.sv-btn.saved{background:var(--teal-100);color:var(--teal-600);}
+.existing{opacity:.45;pointer-events:none;}
+.exist-note{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;text-align:center;margin:2px 0 10px;}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink-900);color:var(--mist-100);font-size:14px;padding:10px 18px;border-radius:100px;opacity:0;transition:opacity .25s;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="app-head"><h1>Settings</h1></div>
+  <div class="screen">
+    <div class="tabs">
+      <button id="tb-svc" class="on" onclick="tab('svc')">Service</button>
+      <button id="tb-app" onclick="tab('app')">Appearance</button>
+      <button id="tb-acc" onclick="tab('acc')">Account</button>
+    </div>
+
+    <!-- SERVICE TAB -->
+    <div id="pane-svc">
+      <p class="exist-note">existing — unchanged</p>
+      <div class="card existing">
+        <h2>Service</h2>
+        <div class="note">● Live &nbsp;·&nbsp; Pause button &nbsp;·&nbsp; reactive method picker (as today)</div>
+      </div>
+    </div>
+
+    <!-- APPEARANCE TAB (placeholder) -->
+    <div id="pane-app" style="display:none">
+      <p class="exist-note">existing — unchanged</p>
+      <div class="card existing"><h2>Appearance</h2><div class="note">Night/Day theme · text size · message font (as today)</div></div>
+    </div>
+
+    <!-- ACCOUNT TAB -->
+    <div id="pane-acc" style="display:none">
+      <div class="card">
+        <h2>Account holder</h2>
+        <label class="fld-lbl">First name</label>
+        <input class="txt-inp" value="Ian">
+        <label class="fld-lbl">Last name</label>
+        <input class="txt-inp" value="Duncan">
+        <label class="fld-lbl">Email</label>
+        <input class="txt-inp" value="ian@example.com" readonly>
+        <p class="note">Your email is how you sign in — change it on the website.</p>
+      </div>
+      <div class="card">
+        <h2>Who Iona is there for</h2>
+        <label class="fld-lbl">First name</label>
+        <input class="txt-inp" value="Margaret">
+        <label class="fld-lbl">Last name</label>
+        <input class="txt-inp" value="Duncan">
+      </div>
+      <div class="card">
+        <h2>Your plan</h2>
+        <div class="plan-card">
+          <div class="plan-badge">🕊️</div>
+          <div>
+            <div class="plan-name">Guardian Angel</div>
+            <div class="plan-sub">Every day · up to 4 times a day · hands-free included</div>
+          </div>
+        </div>
+        <p class="plan-manage">To change your plan, sign in on the website.</p>
+      </div>
+
+      <div class="card">
+        <h2>Service delivery</h2>
+        <label class="fld-lbl">Number Iona reaches you on</label>
+        <div class="ph-row">
+          <select class="drp ph-prfx"><option>🇬🇧 +44 · United Kingdom</option><option>🇮🇪 +353 · Ireland</option></select>
+          <input class="txt-inp" value="7700 900123">
+        </div>
+        <label class="fld-lbl">How Iona gets in touch</label>
+        <div class="seg" id="chan">
+          <button class="on" onclick="seg(this)">App</button>
+          <button onclick="seg(this)">Text message</button>
+          <button onclick="seg(this)">Phone call</button>
+        </div>
+        <label class="fld-lbl">Time zone</label>
+        <select class="drp"><option>Europe/London (GMT+01:00)</option><option>Europe/Dublin (GMT+01:00)</option></select>
+        <p class="note">Times you set follow this time zone.</p>
+      </div>
+      <button class="sv-btn" onclick="save(this)">Save account details</button>
+      <p class="exist-note" style="margin-top:14px">existing — unchanged</p>
+      <div class="card existing"><h2>Emergency contacts · dashboard links · sign out</h2><div class="note">Contacts row (opens the new full-screen view) · remaining rows as today</div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+function tab(t){
+  ['svc','app','acc'].forEach(x=>{
+    document.getElementById('pane-'+x).style.display = x===t?'':'none';
+    document.getElementById('tb-'+(x==='svc'?'svc':x==='app'?'app':'acc')).className = x===t?'on':'';
+  });
+}
+function seg(b){ [...b.parentElement.children].forEach(x=>x.className=''); b.className='on'; }
+function save(btn){
+  btn.textContent='Saved'; btn.classList.add('saved');
+  const t=document.getElementById('toast'); t.textContent='Saved.'; t.classList.add('show');
+  setTimeout(()=>{t.classList.remove('show'); btn.classList.remove('saved');
+    btn.textContent='Save account details';},1500);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>I Need Help — Spike</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #0d0d0d; color: #ccc;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+
+    #btnHelp {
+      width: 220px; height: 220px; border-radius: 50%;
+      background: #c0392b; border: 4px solid #e74c3c;
+      color: #fff; font-size: 22px; font-weight: 700;
+      letter-spacing: 0.5px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; line-height: 1.3;
+      box-shadow: 0 0 40px rgba(231,76,60,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #btnHelp:active { transform: scale(0.96); box-shadow: 0 0 20px rgba(231,76,60,0.2); }
+    #btnHelp:disabled { background: #555; border-color: #666; box-shadow: none; cursor: default; }
+
+    #status {
+      margin-top: 32px; font-size: 15px; color: #888;
+      text-align: center; min-height: 22px;
+    }
+    #status.active { color: #34ECD9; }
+    #status.error  { color: #e74c3c; }
+
+    #log {
+      margin-top: 20px; width: 100%; max-width: 380px;
+      background: #111; border: 1px solid #1e1e1e; border-radius: 8px;
+      padding: 10px 12px; height: 140px; overflow-y: auto;
+      font-family: monospace; font-size: 11px; color: #666;
+    }
+    #log p { margin-bottom: 2px; }
+    .ok  { color: #34ECD9; }
+    .err { color: #e74c3c; }
+
+    .back { margin-top: 16px; color: #333; text-decoration: none; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <button id="btnHelp">I NEED<br>HELP</button>
+
+  <div id="status">tap to call</div>
+
+  <div id="log"></div>
+  <a href="/" class="back">← back</a>
+
+  <script>
+    const NGROK         = 'https://ferris-causing-shed.ngrok-free.dev';
+    const CONF_NAME     = 'ineedhelp-1';
+    const CONTACT_NUM   = '+441753350869';
+
+    const ZeroCall    = window.Capacitor?.Plugins?.ZeroCall;
+    const TwilioVoice = window.Capacitor?.Plugins?.TwilioVoice;
+
+    const btn    = document.getElementById('btnHelp');
+    const status = document.getElementById('status');
+    const logEl  = document.getElementById('log');
+
+    function log(msg, cls) {
+      const p = document.createElement('p');
+      if (cls) p.className = cls;
+      const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      p.textContent = `[${ts}] ${msg}`;
+      logEl.prepend(p);
+    }
+
+    function setStatus(s, cls) {
+      status.textContent = s;
+      status.className = cls || '';
+    }
+
+    if (TwilioVoice) {
+      TwilioVoice.addListener('connected', () => {
+        log('Connected — speaker active, contact being bridged…', 'ok');
+        setStatus('connected — hands-free', 'active');
+        btn.textContent = 'END CALL';
+        btn.style.background = '#555';
+        btn.style.borderColor = '#777';
+        btn.disabled = false;
+        btn._inCall = true;
+      });
+      TwilioVoice.addListener('disconnected', () => {
+        log('Call ended');
+        setStatus('tap to call');
+        btn.innerHTML = 'I NEED<br>HELP';
+        btn.style.background = '#c0392b';
+        btn.style.borderColor = '#e74c3c';
+        btn._inCall = false;
+        btn.disabled = false;
+      });
+      TwilioVoice.addListener('error', (e) => {
+        log('Error: ' + e.error, 'err');
+        setStatus('error — see log', 'error');
+        btn.disabled = false;
+        btn._inCall = false;
+      });
+      TwilioVoice.addListener('speaker_result', (e) => {
+        log('speaker ok=' + e.ok + ' api=' + e.api, e.ok ? 'ok' : 'err');
+      });
+    }
+
+    btn.addEventListener('click', async () => {
+      if (btn._inCall) {
+        TwilioVoice?.hangup({});
+        return;
+      }
+      btn.disabled = true;
+      setStatus('connecting…');
+      try {
+        const resp = await ZeroCall.fetchToken({
+          url: `${NGROK}/twilio/voice-token?identity=cc-user`
+        });
+        if (resp.status !== 200) {
+          log('Token failed ' + resp.status, 'err');
+          setStatus('error', 'error'); btn.disabled = false; return;
+        }
+        const { token } = JSON.parse(resp.body);
+        await TwilioVoice.connectOutbound({
+          accessToken:   token,
+          conferenceName: CONF_NAME,
+        });
+        setStatus('dialing…');
+        log('Outbound initiated — triggering contact dial…');
+
+        // Give the conference 1.5s to start, then ask backend to dial contact
+        await new Promise(r => setTimeout(r, 1500));
+        ZeroCall.fetchToken({
+          url: `${NGROK}/twilio/inh-trigger?conference_name=${CONF_NAME}&contact=${encodeURIComponent(CONTACT_NUM)}`
+        }).then(r => log('Contact triggered: HTTP ' + r.status))
+          .catch(e => log('Trigger error: ' + e, 'err'));
+      } catch (e) {
+        log('Failed: ' + e, 'err');
+        setStatus('error', 'error');
+        btn.disabled = false;
+      }
+    });
+
+    log('Plugins: ZeroCall=' + (ZeroCall ? 'ok' : 'MISSING')
+      + '  TwilioVoice=' + (TwilioVoice ? 'ok' : 'MISSING'));
+  </script>
+</body>
+</html>

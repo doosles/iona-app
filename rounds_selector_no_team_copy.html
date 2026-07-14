@@ -1,0 +1,56 @@
+<div style="background: var(--surface-1); border-radius: 16px; padding: 1.75rem; max-width: 460px; margin: 1rem auto;">
+
+  <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+    <span style="width:30px;height:30px;border-radius:50%;background:#25C9BA;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ti-users" style="font-size:17px;color:#04342C;" aria-hidden="true"></i></span>
+    <h2 style="margin:0;font-size:18px;font-weight:500;color:var(--text-primary);">How many times we try your contacts</h2>
+  </div>
+  <p style="margin:0 0 1.25rem 40px;font-size:14px;color:var(--text-secondary);line-height:1.6;">If someone doesn't answer, we move to the next person right away. This sets how many full rounds we make.</p>
+
+  <div id="seg" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1.25rem;">
+    <button data-n="1" style="cursor:pointer;padding:14px 0;border-radius:12px;border:0.5px solid var(--border);background:var(--surface-2);font-size:15px;font-weight:500;color:var(--text-primary);transition:all .12s;">1 round</button>
+    <button data-n="2" style="cursor:pointer;padding:14px 0;border-radius:12px;border:2px solid #25C9BA;background:#E1F5EE;font-size:15px;font-weight:500;color:#04342C;transition:all .12s;">2 rounds</button>
+    <button data-n="3" style="cursor:pointer;padding:14px 0;border-radius:12px;border:0.5px solid var(--border);background:var(--surface-2);font-size:15px;font-weight:500;color:var(--text-primary);transition:all .12s;">3 rounds</button>
+  </div>
+
+  <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.1rem;">
+    <p style="margin:0 0 10px;font-size:12px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);">What this means</p>
+    <div id="preview" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <p id="default-note" style="margin:12px 0 0;font-size:12px;color:var(--text-muted);font-style:italic;"></p>
+  </div>
+
+</div>
+<script>
+(function(){
+  var rows = {
+    1: [["We call each of your contacts once, in order."]],
+    2: [["Round 1 — we call each contact in turn."],["Round 2 (moments later) — we try everyone again."]],
+    3: [["Rounds 1 and 2 — we call each contact in turn."],["Round 3 — a final try around everyone."]]
+  };
+  var notes = {
+    1: "Fastest. One pass through everyone.",
+    2: "Recommended. A second chance for anyone who missed the first call.",
+    3: "Most persistent. Three full passes through everyone."
+  };
+  var teal="#25C9BA", tealBg="#E1F5EE", tealInk="#04342C";
+  function paint(n){
+    document.querySelectorAll('#seg button').forEach(function(b){
+      var on = b.dataset.n == n;
+      b.style.border = on ? "2px solid "+teal : "0.5px solid var(--border)";
+      b.style.background = on ? tealBg : "var(--surface-2)";
+      b.style.color = on ? tealInk : "var(--text-primary)";
+    });
+    var p = document.getElementById('preview'); p.innerHTML="";
+    rows[n].forEach(function(r){
+      var d=document.createElement('div');
+      d.style.cssText="display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:var(--text-secondary);line-height:1.5;";
+      d.innerHTML='<i class="ti ti-phone" style="font-size:16px;color:'+teal+';margin-top:1px;flex-shrink:0;" aria-hidden="true"></i><span>'+r[0]+'</span>';
+      p.appendChild(d);
+    });
+    document.getElementById('default-note').textContent = notes[n];
+  }
+  document.querySelectorAll('#seg button').forEach(function(b){
+    b.addEventListener('click',function(){ paint(b.dataset.n); });
+  });
+  paint(2);
+})();
+</script>

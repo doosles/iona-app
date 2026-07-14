@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zero Spike</title>
+<style>
+  body { font-family: monospace; background: #081424; color: #e0e0e0;
+         padding: 16px; font-size: 13px; margin: 0; }
+  h2 { color: #34ECD9; margin: 20px 0 6px; font-size: 14px; letter-spacing: 0.05em; }
+  input { display: block; width: 100%; box-sizing: border-box; padding: 10px;
+          margin-bottom: 10px; background: #0f2030; color: #e0e0e0;
+          border: 1px solid #34ECD9; border-radius: 6px; font-size: 15px; }
+  button { display: block; width: 100%; padding: 11px; margin-bottom: 7px;
+           border: none; border-radius: 8px; font-size: 13px;
+           font-weight: bold; cursor: pointer; }
+  .teal  { background: #34ECD9; color: #081424; }
+  .amber { background: #E0973A; color: #081424; }
+  .grey  { background: #2a3a4a; color: #aaa; }
+  .small { background: #142230; color: #34ECD9; border: 1px solid #34ECD9;
+           font-size: 11px; padding: 7px; }
+  #log { margin-top: 14px; background: #050e18; padding: 10px; border-radius: 6px;
+         max-height: 42vh; overflow-y: auto; font-size: 11px; line-height: 1.6; }
+  .ts  { color: #555; }
+  .call_state       { color: #34ECD9; }
+  .connection_state { color: #E0973A; }
+  .speaker_result   { color: #9de; }
+  .audio_route      { color: #f9c; }
+  .action           { color: #888; }
+  .error            { color: #f66; }
+</style>
+</head>
+<body>
+
+<h2>Zero Call Spike</h2>
+<button class="small" onclick="location.href='/'">← back to Iona</button>
+<button class="small" onclick="location.href='/spike-cc.html'">→ CC WebRTC spike</button>
+<button class="small" onclick="location.href='/spike-twilio.html'">→ Native Twilio spike</button>
+
+<input id="number" type="tel" value="+441753350869" />
+
+<h2>Route A — PSTN (ACTION_CALL + TelephonyCallback)</h2>
+<button class="teal" onclick="placeA()">Place call — Route A</button>
+<p style="color:#556;font-size:10px;margin:0 0 10px">
+  Expect: call_state OFFHOOK on dial, IDLE on end. OFFHOOK ≠ answered.
+</p>
+
+<h2>Route B — ConnectionService (self-managed, no real PSTN)</h2>
+<button class="amber" onclick="placeB()">Place call — Route B</button>
+<p style="color:#556;font-size:10px;margin:0 0 10px">
+  Expect: connection_state events (dialing → no further transitions without VoIP).
+</p>
+
+<h2>Speakerphone (test independently)</h2>
+<button class="teal"  onclick="speaker(true, 0)">Speaker ON — 0ms (stock Android)</button>
+<button class="teal"  onclick="speaker(true, 400)">Speaker ON — 400ms (Samsung-safe)</button>
+<button class="teal"  onclick="speaker(true, 700)">Speaker ON — 700ms (OneUI 6)</button>
+<button class="grey"  onclick="speaker(false, 0)">Speaker OFF</button>
+
+<h2>Log</h2>
+<button class="small" onclick="document.getElementById('log').innerHTML=''">clear</button>
+<div id="log">waiting for events…</div>
+
+<script>
+(function() {
+  // Wait for Capacitor bridge to be ready
+  function init() {
+    if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.ZeroCall) {
+      setTimeout(init, 100);
+      return;
+    }
+
+    const Z = window.Capacitor.Plugins.ZeroCall;
+
+    function log(cls, ev, data) {
+      const el = document.getElementById('log');
+      const ts = new Date().toTimeString().slice(0, 8);
+      const line = document.createElement('div');
+      line.innerHTML =
+        `<span class="ts">${ts}</span> <span class="${cls}">${ev}</span>  ` +
+        JSON.stringify(data);
+      el.prepend(line);
+    }
+
+    // Subscribe to all events
+    ['call_state', 'connection_state', 'speaker_result', 'audio_route'].forEach(ev => {
+      Z.addListener(ev, data => log(ev, ev, data));
+    });
+
+    window.placeA = async () => {
+      const n = document.getElementById('number').value.trim();
+      if (!n) { alert('Enter a phone number first'); return; }
+      try { log('action', 'placeCallA', await Z.placeCallA({ number: n })); }
+      catch(e) { log('error', 'placeCallA-error', { msg: e.message }); }
+    };
+
+    window.placeB = async () => {
+      const n = document.getElementById('number').value.trim();
+      if (!n) { alert('Enter a phone number first'); return; }
+      try { log('action', 'placeCallB', await Z.placeCallB({ number: n })); }
+      catch(e) { log('error', 'placeCallB-error', { msg: e.message }); }
+    };
+
+    window.speaker = async (on, delayMs) => {
+      try { log('action', 'setSpeaker', await Z.setSpeaker({ on, delayMs })); }
+      catch(e) { log('error', 'setSpeaker-error', { msg: e.message }); }
+    };
+
+    log('action', 'ready', { plugin: 'ZeroCall', ts: Date.now() });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>

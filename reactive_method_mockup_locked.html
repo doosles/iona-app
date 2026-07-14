@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<!--
+  Iona · Service-tab reactive-method picker — LOCKED MOCKUP
+  Settled: radio-select, two paths (Iona escalation / hands-free). Device-dial is
+  fallback-only, NOT in this picker. Icon left · text middle · radio right.
+  Entitled member sees both live; non-entitled member's hands-free row becomes the
+  "Add £6" upgrade path in the same row geometry (radio slot -> price pill).
+
+  BUILT IN APP NIGHT-THEME VALUES (from memory / 003 US2 tonal-card pattern):
+    sheet bg          #0C1C30
+    tonal surface     rgba(255,255,255,0.05)
+    teal (Iona)       #34ECD9
+    amber (Oran/HF)   #E0973A
+    body font         Hanken Grotesk
+  >>> CC: confirm the exact tonal-card tokens, selected-row treatment, and radius
+      against the LIVE www/style.css night theme before building. Do not trust these
+      hex values over the real sheet tokens — this file is layout + copy + states,
+      not a token source. <<<
+
+  Text sizing note (003 US6): message/menu text scales with the stepper; safety
+  action buttons + chrome stay fixed. These rows are menu text -> they SCALE. Wire
+  the row title/subtitle to the same size token US6 uses for settings rows.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iona · reactive method — locked</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&display=swap');
+
+  :root{
+    --sheet:#0C1C30;
+    --tonal:rgba(255,255,255,0.05);
+    --tonal-hi:rgba(255,255,255,0.08);
+    --teal:#34ECD9;
+    --teal-soft:rgba(52,236,217,0.10);
+    --teal-tile:rgba(52,236,217,0.15);
+    --amber:#E0973A;
+    --amber-soft:rgba(224,151,58,0.08);
+    --amber-tile:rgba(224,151,58,0.12);
+    --amber-pill:rgba(224,151,58,0.18);
+    --text:#EAF2F5;
+    --text-dim:#8FA6B0;
+    --text-faint:#55707E;
+    --hairline:rgba(255,255,255,0.08);
+    --radius-card:16px;
+    --radius-row:12px;
+    --radius-tile:10px;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;padding:24px 16px;
+    background:radial-gradient(120% 120% at 50% 0%, #11233A 0%, #0C1C30 60%, #081422 100%);
+    font-family:'Hanken Grotesk',system-ui,sans-serif;
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:400px;margin:0 auto;}
+
+  .eyebrow{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 4px;}
+  .lead{font-size:13px;color:var(--text-dim);margin:0 0 16px;}
+  .state-label{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px;}
+  .note{font-size:12px;color:var(--text-faint);margin:8px 4px 30px;line-height:1.5;}
+
+  .card{
+    background:var(--sheet);
+    border:0.5px solid var(--hairline);
+    border-radius:var(--radius-card);
+    padding:20px;
+  }
+  .card--ghost{
+    background:rgba(255,255,255,0.03);
+    border:0.5px dashed rgba(255,255,255,0.12);
+  }
+
+  /* row anatomy: icon | text | control */
+  .row{
+    display:flex;align-items:center;gap:14px;
+    padding:14px;
+    border-radius:var(--radius-row);
+    background:var(--tonal);
+    border:1.5px solid transparent;
+    cursor:pointer;
+    margin-bottom:10px;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .row:last-child{margin-bottom:0;}
+  .row--selected{background:var(--teal-soft);border-color:var(--teal);}
+  .row--upgrade{background:var(--amber-soft);border:0.5px solid rgba(224,151,58,0.25);}
+
+  .tile{
+    width:40px;height:40px;flex-shrink:0;
+    border-radius:var(--radius-tile);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;line-height:1;
+  }
+  .tile--teal{background:var(--teal-tile);color:var(--teal);}
+  .tile--amber{background:var(--amber-tile);color:var(--amber);}
+  .tile--locked{background:var(--amber-tile);color:#85694A;}
+
+  .body{flex:1;min-width:0;}
+  .title-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .title{font-size:15px;font-weight:500;color:var(--text);}
+  .subtitle{display:block;font-size:13px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+
+  .badge{
+    font-size:11px;font-weight:600;
+    padding:2px 8px;border-radius:99px;
+    background:var(--amber-pill);color:var(--amber);
+    white-space:nowrap;
+  }
+
+  /* radio control (right) */
+  .radio{
+    width:22px;height:22px;flex-shrink:0;
+    border-radius:50%;
+    border:2px solid var(--text-faint);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .radio--on{border-color:var(--teal);}
+  .radio--on::after{content:"";width:11px;height:11px;border-radius:50%;background:var(--teal);}
+
+  /* price pill occupies the radio slot in the upgrade state */
+  .price{
+    flex-shrink:0;
+    font-size:11px;font-weight:600;
+    padding:5px 11px;border-radius:99px;
+    background:var(--amber);color:#2A1A06;
+    white-space:nowrap;
+  }
+
+  .ti{font-style:normal;}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/tabler-icons.min.css">
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ENTITLED: both paths live, pick one -->
+  <div class="card">
+    <p class="eyebrow">How help reaches you</p>
+    <p class="lead">When you press for help, we'll use</p>
+
+    <label class="row row--selected">
+      <span class="tile tile--teal"><i class="ti ti-users"></i></span>
+      <span class="body">
+        <span class="title-line"><span class="title">Iona reaches your people</span></span>
+        <span class="subtitle">We call and message your contacts for you</span>
+      </span>
+      <span class="radio radio--on" role="radio" aria-checked="true" aria-label="Iona reaches your people"></span>
+    </label>
+
+    <label class="row">
+      <span class="tile tile--amber"><i class="ti ti-microphone"></i></span>
+      <span class="body">
+        <span class="title-line">
+          <span class="title">Hands-free voice</span>
+          <span class="badge">Included</span>
+        </span>
+        <span class="subtitle">Speak with someone without holding the phone</span>
+      </span>
+      <span class="radio" role="radio" aria-checked="false" aria-label="Hands-free voice"></span>
+    </label>
+  </div>
+  <p class="note">Entitled member (Guardian Angel or hands-free add-on) — both paths live, pick one.</p>
+
+  <!-- NON-ENTITLED: hands-free row becomes the upgrade path, same geometry -->
+  <div class="card card--ghost">
+    <p class="state-label">Not entitled — hands-free becomes the upgrade path</p>
+
+    <label class="row row--selected" style="margin-bottom:10px;">
+      <span class="tile tile--teal"><i class="ti ti-users"></i></span>
+      <span class="body">
+        <span class="title-line"><span class="title">Iona reaches your people</span></span>
+        <span class="subtitle">We call and message your contacts for you</span>
+      </span>
+      <span class="radio radio--on" role="radio" aria-checked="true" aria-label="Iona reaches your people"></span>
+    </label>
+
+    <label class="row row--upgrade">
+      <span class="tile tile--locked"><i class="ti ti-microphone"></i></span>
+      <span class="body">
+        <span class="title-line"><span class="title">Hands-free voice</span></span>
+        <span class="subtitle">Speak without holding the phone</span>
+      </span>
+      <span class="price">Add £6</span>
+    </label>
+    <p class="note" style="margin-bottom:0;">Radio slot becomes the price pill — tapping opens the dashboard Account tab to add the layer. Same row geometry either way, so the layout never shifts between states.</p>
+  </div>
+
+</div>
+</body>
+</html>
