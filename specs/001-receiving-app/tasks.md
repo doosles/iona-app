@@ -30,31 +30,21 @@ All styles in `www/style.css`.
 **Purpose**: Scaffold the Capacitor project in the `iona-app` repo and confirm
 the Android build environment is ready.
 
-- [ ] T001 Install npm dependencies — run `npm init -y` then
-  `npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/push-notifications @capacitor/preferences` in repo root — `package.json`
+- [x] T001 ✅ Install npm dependencies — `package.json`
 
-- [ ] T002 Initialise Capacitor — run `npx cap init "Iona" "com.iona.app" --web-dir www` in repo root — `capacitor.config.json`
+- [x] T002 ✅ Initialise Capacitor — `capacitor.config.json`
 
-- [ ] T003 Create `www/` directory and `www/index.html` with the full app shell:
-  all screen `<div>` containers (screen-check, screen-login, screen-home,
-  screen-contact, screen-alarm-active, screen-alarm-terminal, screen-setup);
-  Memberstack script tag (data-memberstack-app attribute); link to style.css;
-  script tag for app.js — `www/index.html`
+- [x] T003 ✅ Create `www/index.html` with full app shell — `www/index.html`
+  Note: screen structure diverged from spec — unified `screen-today` replaces
+  separate screen-home/screen-contact/screen-alarm-active/screen-alarm-terminal.
 
-- [ ] T004 [P] Create `www/style.css` with base dark-theme styles, `.hidden`
-  utility class, and placeholder blocks for each screen — `www/style.css`
+- [x] T004 ✅ [P] Create `www/style.css` — `www/style.css`
 
-- [ ] T005 Create `www/app.js` stub — empty module with section comments for each
-  major concern (constants, utilities, auth, push, alarm, contact-response, setup);
-  no logic yet — `www/app.js`
+- [x] T005 ✅ Create `www/app.js` stub — `www/app.js`
 
-- [ ] T006 Add Android platform and sync — run `npx cap add android` then
-  `npx cap sync android` — `android/`
+- [x] T006 ✅ Add Android platform and sync — `android/`
 
-- [ ] T007 ⛔ STOP — **Human download step**: Firebase Console →
-  Project settings → howsu-9a479 → download `google-services.json` → place at
-  `android/app/google-services.json`. Do not proceed to any push or alarm task
-  until owner confirms this file is in place — `android/app/google-services.json`
+- [x] T007 ✅ STOP RESOLVED — `android/app/google-services.json` confirmed in place.
 
 ---
 
@@ -74,18 +64,16 @@ The field names confirmed in T008 and T009 are used by T012, T017, T018, and T02
 - [x] T009 ✅ RESOLVED — `data.type` field added to backend (commit 8bb5f87).
   Confirmed values: `"scheduled_contact"` (FCM push), `"escalation_complete"` (cycle end),
   `"okay"` (positive response value for `/pwa-respond`). Both contracts updated.
+  Additional types shipped: `"reminder_1"`, `"reminder_2"`, `"escalation_started"`.
 
-- [ ] T010 Write Preferences utility functions in `www/app.js` — `getPreference(key)`,
-  `setPreference(key, value)`, `removePreference(key)` using `Capacitor.Plugins.Preferences`;
-  swallow errors, return null on failure — `www/app.js`
+- [x] T010 ✅ Write Preferences utility functions in `www/app.js` —
+  `getPreference`, `setPreference`, `removePreference` at lines 10–29. — `www/app.js`
 
-- [ ] T011 Write screen routing utilities in `www/app.js` — `show(screenId)` (hides all
-  `.screen` divs, removes `.hidden` from target); `setMsg(id, text)` — `www/app.js`
+- [x] T011 ✅ Write screen routing utilities in `www/app.js` —
+  `show(screenId)` and `setMsg(id, text)` at lines 32–42. — `www/app.js`
 
-- [ ] T012 Write Memberstack initialisation in `www/app.js` — polling loop
-  (`window.$memberstackDom` check, up to 40 × 200 ms); on load failure set status
-  message and return; on success fetch `memberConfig` via `getCurrentMember()` and
-  hold in module-level variable (never fetched again on alarm path) — `www/app.js`
+- [x] T012 ✅ Write Memberstack initialisation in `www/app.js` —
+  `initMemberstack()` with polling loop; `memberConfig` held in module-level variable. — `www/app.js`
 
 **Checkpoint**: Preferences, routing, and Memberstack init complete. All field names
 confirmed. User story work can begin.
@@ -99,28 +87,15 @@ restarts, logout clears all state cleanly and re-login re-registers push.
 
 **Independent test**: Quickstart scenarios 1a, 1b, 1c, 1d.
 
-- [ ] T013 [US1] Write session check on `window` load in `www/app.js` — call
-  `ms.getCurrentMember()`; if member returned: store `member_airtable_id` to
-  Preferences using confirmed field name (T008), show home screen; if not: show
-  sign-in screen — `www/app.js`
+- [x] T013 ✅ [US1] Write session check on `window` load — `checkSession()` at line 228. — `www/app.js`
 
-- [ ] T014 [US1] Write sign-in flow in `www/app.js` — send-code button handler
-  calls `ms.sendMemberLoginPasswordlessEmail({ email })`; verify button handler
-  calls `ms.loginMemberPasswordless({ email, passwordlessToken })`; on success:
-  extract `airtable_record_id` from `member.data.customFields[<confirmed name>]`,
-  validate it starts with `"rec"` (fail loud if absent), store to Preferences,
-  store `memberConfig` in memory, show home screen — `www/app.js`
+- [x] T014 ✅ [US1] Write sign-in flow — `initSignIn()` / `verifyCode()` at line 277. — `www/app.js`
 
-- [ ] T015 [US1] Write logout in `www/app.js` — logout button handler calls
-  `ms.logout()`, then removes Preferences keys `fcm_token`, `member_airtable_id`,
-  `escalation_state`, then shows sign-in screen — `www/app.js`
+- [x] T015 ✅ [US1] Write logout — `initLogout()` at line 375; removes all three Preferences keys. — `www/app.js`
 
-- [ ] T016 [P] [US1] Add sign-in screen markup to `www/index.html` — email input,
-  send-code button, code section (initially hidden), 6-digit code input, verify
-  button, error message paragraph — `www/index.html`
+- [x] T016 ✅ [P] [US1] Sign-in screen markup — email input, OTP boxes, verify button. — `www/index.html`
 
-- [ ] T017 [P] [US1] Add sign-in screen and home screen styles to `www/style.css` —
-  input, button, error message, and home screen layout — `www/style.css`
+- [x] T017 ✅ [P] [US1] Sign-in and home screen styles. — `www/style.css`
 
 **Checkpoint**: Sign in, session persistence, and logout work. Run quickstart 1a–1d
 before proceeding.
@@ -137,38 +112,23 @@ confirmed) must be complete before running push tasks.
 
 **Independent test**: Quickstart scenarios 2, 3a, 3b, 3c.
 
-- [ ] T018 [US2] Write push notification listener setup in `www/app.js` — attach
-  all four listeners at app init (before login, so they are ready): `registration`,
-  `registrationError`, `pushNotificationReceived`, `pushNotificationActionPerformed`;
-  listeners are attached once only — `www/app.js`
+- [x] T018 ✅ [US2] Write push notification listener setup — `initPushListeners()` at line 395;
+  all four listeners attached at init. — `www/app.js`
 
-- [ ] T019 [US2] Write post-login push registration in `www/app.js` — called after
-  successful login and after logout/re-login; call `PushNotifications.requestPermissions()`;
-  on granted: call `PushNotifications.register()`; `registration` callback: compare
-  new token to stored, if different store to Preferences and call
-  `registerTokenWithBackend()`; `registrationError`: log, show non-alarming warning —
-  `www/app.js`
+- [x] T019 ✅ [US2] Write post-login push registration — `setupPush()` at line 461;
+  permissions, register, token compare, backend POST. — `www/app.js`
 
-- [ ] T020 [US2] Write `registerTokenWithBackend(fcmToken, airtableRecordId)` in
-  `www/app.js` — POST to `/register-token` with `{ token: fcmToken, member_id: airtableRecordId }`;
-  on fail: log, show soft "setup incomplete" warning, offer retry; on success: silent —
-  `www/app.js`
+- [x] T020 ✅ [US2] Write `registerTokenWithBackend()` — line 441; POST to `/register-token`. — `www/app.js`
 
-- [ ] T021 [US2] Write scheduled-contact-response screen handler in `www/app.js` —
-  on `pushNotificationReceived` with confirmed `data.type` value (T009): show
-  contact-response screen with notification body; on `pushNotificationActionPerformed`
-  with same type: same; unknown type: open home screen; response button POST
-  `/pwa-respond` with `{ fcm_token, response: <confirmed value from T009> }`; on 200:
-  show confirmation and next contact time if present; on fail: non-alarming error,
-  retry enabled — `www/app.js`
+- [x] T021 ✅ [US2] Write push handler and response flow — `showTodayMessage()` at line 617;
+  routes `scheduled_contact`, `reminder_1`, `reminder_2`, `escalation_started`, `escalation_complete`.
+  Cards stack (append) for reminders; replace for scheduled_contact. — `www/app.js`
 
-- [ ] T022 [P] [US2] Add contact-response screen markup to `www/index.html` —
-  message display, response button (copy: owner confirms label before this task,
-  direction: "I'm here" / "All good" / "Got it" — no "okay"), confirmation area —
-  `www/index.html`
+- [x] T022 ✅ [P] [US2] Contact-response screen markup — merged into `screen-today`;
+  `.iona-card`, `.card--oran` with character-matched borders; thread/empty toggle. — `www/index.html`
 
-- [ ] T023 [P] [US2] Add contact-response screen styles to `www/style.css` —
-  message, response button, confirmation state — `www/style.css`
+- [x] T023 ✅ [P] [US2] Contact-response screen styles — `.iona-card`, `.card--oran`,
+  `.iona-msg`, btn-okay / btn-alert pulse states. — `www/style.css`
 
 **Checkpoint**: Push registers post-login and on re-login. Notifications arrive and
 response flow works. Run quickstart 2, 3a–3c before proceeding.
@@ -186,66 +146,36 @@ working — FCM token in Preferences is required for the alarm POST.
 
 **Independent test**: Quickstart scenarios 4a, 4b, 4c, 4d, 4e.
 
-- [ ] T024 [US3] Install `@capacitor/keep-awake` — run
-  `npm install @capacitor/keep-awake` then `npx cap sync android` — `package.json`,
-  `android/`
+- [x] T024 ✅ [US3] `@capacitor/keep-awake` installed and synced; used throughout escalation states. — `package.json`
 
-- [ ] T025 [US3] Write alarm constants and config helper in `www/app.js` —
-  `const ALARM_CANCEL_WINDOW_SECONDS = 10;` at top of module;
-  `function getCancelWindowSeconds(memberConfig)` returns
-  `memberConfig?.alarmCancelWindow ?? ALARM_CANCEL_WINDOW_SECONDS`;
-  `memberConfig` is the in-memory object loaded at login (T012) — never fetched
-  here — `www/app.js`
+- [x] T025 ✅ [US3] Alarm constants and `getCancelWindowSeconds()` at line 480. — `www/app.js`
 
-- [ ] T026 [US3] Write `playAlarmTone()` in `www/app.js` — `AudioContext` +
-  `OscillatorNode`; sine wave, duration and frequency are build-time design constants;
-  store oscillator/context reference for cancellation; wrap in try/catch, swallow
-  errors and log — `www/app.js`
+- [x] T026 ✅ [US3] `playAlarmSiren()`, `playPulseTone()`, `playArrivalPing()`, `playVoiceMessage()`
+  at lines 97–195; AudioContext-based tone synthesis. — `www/app.js`
 
-- [ ] T027 [US3] Write escalation state restore on app launch in `www/app.js` —
-  read `escalation_state` from Preferences on init; if `"active"`: call
-  `KeepAwake.keepAwake()` and show active-escalation screen; if `"terminal"`:
-  show terminal screen; if `"idle"` or absent: show home screen — `www/app.js`
+- [x] T027 ✅ [US3] Escalation state restore on launch — `checkSession()` (line 246) and
+  `onLoginSuccess()` (line 269) both read `escalation_state` and route to correct screen. — `www/app.js`
 
-- [ ] T028 [US3] Write alarm button tap handler in `www/app.js` — precondition
-  check: `escalation_state` must be `"idle"` and `fcm_token` must be present (fail
-  loud with clear screen message if not); on pass: call `playAlarmTone()`, set
-  `escalation_state` → `"active"` in Preferences, `KeepAwake.keepAwake()`, show
-  active-escalation screen, start countdown — `www/app.js`
+- [x] T028 ✅ [US3] Alarm button (btn-alert) tap handler — precondition check, `keepAwake()`,
+  `escalation_state → "active"`, countdown start. — `www/app.js`
 
-- [ ] T029 [US3] Write countdown timer logic in `www/app.js` — count down from
-  `getCancelWindowSeconds(memberConfig)` updating the visible display each second;
-  cancel button tap: stop tone, set `escalation_state` → `"idle"`, `allowSleep()`,
-  show home screen, no backend call; on zero: hide cancel button, update screen copy
-  to committed state, fire alarm POST — `www/app.js`
+- [x] T029 ✅ [US3] Countdown timer — `showCancelWindowState()` at line 484; cancel stops tone,
+  resets state; zero fires commit. — `www/app.js`
 
-- [ ] T030 [US3] Write alarm POST and error handling in `www/app.js` — POST
-  `/pwa-respond` with `{ fcm_token, response: "alert" }`; on network error or
-  non-200: show visible warning + retry on active screen (do not revert to idle);
-  on success: await `escalation_complete` FCM signal — `www/app.js`
+- [x] T030 ✅ [US3] Alarm POST and error handling — `commitEscalation()` at line 577;
+  POST `/pwa-respond` with `response: "alert"`; retry on fail. — `www/app.js`
 
-- [ ] T031 [US3] Write escalation-complete FCM handler in `www/app.js` — on
-  `pushNotificationReceived` / `pushNotificationActionPerformed` with
-  `type: "escalation_complete"` (confirmed field name from T009): set
-  `escalation_state` → `"terminal"`, `allowSleep()`, show terminal screen; add
-  manual-close timeout: after defined duration (build-time constant) show close
-  action; on close: `escalation_state` → `"idle"` — `www/app.js`
+- [x] T031 ✅ [US3] Escalation-complete FCM handler — `handleEscalationComplete()` at line 642;
+  sets `escalation_state → "terminal"`, `allowSleep()`, shows terminal screen. — `www/app.js`
 
-- [ ] T032 [US3] ⛔ STOP — **Terminal state copy requires owner review**. Propose
-  the terminal screen copy before writing it: Iona-voice, vocabulary-compliant,
-  warm and honest, attempt language only (no outcome implied). Show proposed copy
-  and wait for approval. Then add terminal state content to markup and wire it in
-  `www/app.js` — `www/index.html`, `www/app.js`
+- [x] T032 ✅ STOP RESOLVED — Terminal copy approved and shipped:
+  "I've tried your contacts." / "If someone is able to help, they are on their way." — `www/index.html`
 
-- [ ] T033 [P] [US3] Add alarm button, active-escalation screen, and terminal
-  state screen markup to `www/index.html` — alarm button on home screen; active
-  screen: message area, visible countdown display, cancel button; terminal screen:
-  content area (populated after T032 approved), close action — `www/index.html`
+- [x] T033 ✅ [P] [US3] Alarm screen markup — `alarm-countdown-card`, `alarm-escalation-card`,
+  `alarm-terminal-card` in `screen-today`; "Calling your contacts" heading. — `www/index.html`
 
-- [ ] T034 [P] [US3] Add alarm and escalation screen styles to `www/style.css` —
-  alarm button (min 48×48 dp touch target), cancel button (min 48×48 dp, one-handed
-  reach), countdown display, active-escalation screen layout, terminal screen layout —
-  `www/style.css`
+- [x] T034 ✅ [P] [US3] Alarm and escalation styles — countdown card, escalation card,
+  terminal card, btn-cancel. — `www/style.css`
 
 **Checkpoint**: Full alarm flow works — cancel, commit, active state, terminal state.
 Run quickstart 4a–4e before proceeding.
@@ -264,13 +194,15 @@ prompt shown on login. Changes persist.
   display contacts in `order` sequence with natural name formatting; no raw field
   names, no provenance labels; first-time prompt: check a Preferences flag on home
   screen load, guide to setup if not seen — `www/app.js`
+  **Status**: NOT DONE — `screen-setup` markup exists but no `initSetup()` or contact-fetching
+  logic in app.js. Nav tabs currently route to settings overlay only.
 
-- [ ] T036 [P] [US4] Add setup screen markup to `www/index.html` — contact list
-  container, individual contact item template, navigation link from home screen —
-  `www/index.html`
+- [x] T036 ✅ [P] [US4] Setup screen markup shell — `screen-setup` with `setup-contacts-list`
+  container and `btn-setup-back` in `www/index.html`. Data layer pending T035. — `www/index.html`
 
 - [ ] T037 [P] [US4] Add setup screen styles to `www/style.css` — contact list,
   contact item, order indicator — `www/style.css`
+  **Status**: Pending T035 implementation.
 
 **Checkpoint**: Contact list displays correctly, first-time prompt shows, settings
 persist. Run quickstart scenario 5.
@@ -283,32 +215,42 @@ persist. Run quickstart scenario 5.
 
 **Independent test**: Quickstart scenario 6.
 
-- [ ] T038 [US5] Run quickstart scenario 6 end-to-end — web sign-up on Android
-  device browser → open app → sign in → receive service → document result; no
-  code changes expected; if handoff fails, identify the gap and raise it before
-  proceeding — `specs/001-receiving-app/quickstart.md`
+- [x] T038 ✅ [US5] Run quickstart scenario 6 end-to-end — confirmed 2026-06-21:
+  website signup → member created in Memberstack + Airtable → OTP email received →
+  code entry → app login successful. No code changes required. — `specs/001-receiving-app/quickstart.md`
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T039 §II vocabulary compliance pass — review every user-facing string in
-  `www/index.html` and `www/app.js` against the banned list: "check-in", "okay"
-  in copy, "roster", clinical terms, alarming language, system jargon, provenance
-  labels; also verify Iona referred to by name only; check backend notification
-  strings in howsu workspace `pwa_sender.py` — `www/index.html`, `www/app.js`
+- [x] T039 ✅ §II vocabulary compliance pass — all user-facing strings reviewed and updated;
+  banned terms removed; character-matched card vocabulary (Iona/Oran). — `www/index.html`, `www/app.js`
 
-- [ ] T040 Syntax check — run `node --check www/app.js`; fix any reported errors
-  before committing — `www/app.js`
+- [x] T040 ✅ Syntax check — `node --check www/app.js` passes clean. — `www/app.js`
 
-- [ ] T041 [P] Sync and build — run `npx cap sync android` then
-  `npx cap run android --target <device-id>` to produce and install final APK —
-  `android/`
+- [x] T041 ✅ [P] Sync and build — `npx cap sync android` + Gradle build installed to
+  device 12251JEC214674; confirmed on-device. — `android/`
 
-- [ ] T042 Full quickstart validation — run all scenarios from quickstart.md
-  (1a through vocabulary spot-check) on the physical Android device; record pass/
-  fail against each success criterion (SC-001 through SC-008) —
-  `specs/001-receiving-app/quickstart.md`
+- [x] T042 ✅ Full quickstart validation — SC-001, SC-002, SC-003 passed 2026-06-21
+  on device 12251JEC214674. SC-004–SC-008 validated by live test cycle same session.
+  Full end-to-end cycle (scheduled contact → reminder 1 → reminder 2 → escalation →
+  terminal) confirmed working. — `specs/001-receiving-app/quickstart.md`
+
+  **SC-001 ✅ PASSED** — sign-in < 2 min (target). Scenario 6 confirmed: website
+  signup → OTP email → code entry → home screen, well within 2 minutes.
+
+  **SC-002 ✅ PASSED** — home screen < 3s on relaunch (target). Logcat confirmed:
+  app resumed at 17:42:19.086; home screen rendered immediately (no login re-prompt,
+  session persisted via Preferences).
+
+  **SC-003 ✅ PASSED** — push send-to-display ~1s across all notification types
+  (target <10s). Measured live via server log + adb logcat 2026-06-21:
+  - Scheduled contact: sent 17:49:55 → received 17:49:56.263 (~1s)
+  - Reminder 1:        sent 17:55:03 → received 17:55:04.730 (~1s)
+  - Reminder 2:        sent 18:00:15 → received 18:00:15.138 (<1s)
+  - escalation_started: sent 18:05:19 → received 18:05:21.555 (~2s)
+  - escalation_complete: sent 18:05:23 → received 18:05:42.076 (~19s — IVR call
+    handling time, not FCM latency; not subject to SC-003)
 
 ---
 
@@ -334,14 +276,14 @@ persist. Run quickstart scenario 5.
 - Markup tasks in `www/index.html` marked [P] with style tasks in `www/style.css`
   — different files, parallel within a story once screen structure is designed
 
-### STOP Tasks (human action or owner review required)
+### STOP Tasks
 
-| Task | What | Do not proceed past until |
-|------|------|--------------------------|
-| T007 | google-services.json download | Owner confirms file at `android/app/google-services.json` |
-| T008 | Memberstack custom field name | Exact field name confirmed from live member object |
-| T009 | pwa_sender.py field + value | data.type and response value confirmed and recorded |
-| T032 | Terminal state copy | Owner approves proposed copy |
+| Task | What | Status |
+|------|------|--------|
+| T007 | google-services.json download | ✅ Resolved |
+| T008 | Memberstack custom field name | ✅ Resolved — `'airtable-id'` |
+| T009 | pwa_sender.py field + value | ✅ Resolved — `data.type` confirmed |
+| T032 | Terminal state copy | ✅ Resolved — copy approved and shipped |
 
 ---
 
@@ -388,14 +330,18 @@ scheduled contacts, and respond. This is a deployable increment.
 
 ## Task Count
 
-| Phase | Tasks | STOP tasks |
-|-------|-------|-----------|
-| Setup | T001–T007 | 1 (T007) |
-| Foundational | T008–T012 | 2 (T008, T009) |
-| US1 Sign In | T013–T017 | 0 |
-| US2 Scheduled Contact | T018–T023 | 0 |
-| US3 Raise Alarm | T024–T034 | 1 (T032) |
-| US4 Set Up | T035–T037 | 0 |
-| US5 Full Journey | T038 | 0 |
-| Polish | T039–T042 | 0 |
-| **Total** | **42** | **4** |
+| Phase | Tasks | Done | Open |
+|-------|-------|------|------|
+| Setup | T001–T007 | 7 | 0 |
+| Foundational | T008–T012 | 5 | 0 |
+| US1 Sign In | T013–T017 | 5 | 0 |
+| US2 Scheduled Contact | T018–T023 | 6 | 0 |
+| US3 Raise Alarm | T024–T034 | 11 | 0 |
+| US4 Set Up | T035–T037 | 1 | 2 (T035, T037) |
+| US5 Full Journey | T038 | 1 | 0 |
+| Polish | T039–T042 | 4 | 0 |
+| **Total** | **42** | **40** | **2** |
+
+### Open items (v1 remaining)
+- **T035** — setup screen handler (contacts list, first-time prompt) — `www/app.js`
+- **T037** — setup screen styles (depends on T035) — `www/style.css`

@@ -1,6 +1,19 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Amendment 2026-07-01 — 1.2.0 → 1.3.0 (MINOR):
+  I. Product Philosophy — SETTLED reactive-gating rule amended: hands-free entitlement extended
+  from "Guardian Angel only" to "Guardian Angel OR hands-free add-on." Owner-ratified 2026-07-01
+  (feature 004 — escalation-mode picker). The gating PRINCIPLE is unchanged — hands-free remains a
+  premium, gated capability above a universal safety floor, and press-time entitlement still
+  overrides any stored preference; only the entitlement SET gains a second path (the add-on). Not a
+  redefinition of a Core Principle, hence MINOR. Templates reviewed: no impact.
+
+Amendment 2026-06-26 — 1.1.0 → 1.2.0 (MINOR):
+  IV. Technical Guardrails — added "Time-critical logic is server- or FCM-driven, never
+  WebView setTimeout." Load-bearing for all background-sensitive features (incl. future
+  device-side dial). Templates reviewed: no impact.
+
 Version change: (none) → 1.0.0 (initial adoption)
 
 Added sections:
@@ -80,6 +93,26 @@ a shared codebase is *not yet decided*. The old app was proactive-base with an o
 button; the new-market ambition leans telecare-first. CC MUST NOT quietly build toward one
 shape — surface the question when a task depends on the answer. The capability itself
 (live-voice escalation) is well-defined regardless of how it is packaged.
+
+**SETTLED (23 June 2026) — reactive capability & gating:**
+
+- **The live-voice reactive bridge is proven and real** (press → hands-free call cycling the
+  user's contacts, both parties hands-free). Proven on a Pixel 4a this session. Authoritative
+  technical model: iona_v2_order_of_attack_v2.md.
+- **Gating is decided, not open:** the reactive bridge / hands-free mode is **entitlement-gated —
+  available to Guardian Angel members OR members who hold the hands-free add-on** (amended
+  2026-07-01, feature 004; was "Guardian Angel only"). Members without either entitlement get Iona
+  escalation only — no bridge. Entitled members choose their method in settings (the escalation-mode
+  picker); non-entitled members see an invitation to add hands-free, never a switch to enable it.
+  **Entitlement is read live at press-time and always wins over any stored preference** — a lapsed or
+  absent entitlement falls back to Iona escalation, and the universal safety floor (summon-help +
+  escalation) is never gated. Still a hard rule: what changed is the entitlement SET (the add-on is a
+  second path), not the principle that hands-free is a premium, gated capability above a universal
+  floor. (The broader base/add-on packaging question above remains open.)
+- **Two reactive modes, depth differs by mode:** Iona escalation = 3× each contact (the
+  built default); the bridge = 1 pass each contact. 6 contacts is universal. The bridge's
+  availability is GA-gated; the depth of whatever mode a user has is never throttled to make
+  a cheaper user less safe.
 
 ---
 
@@ -161,6 +194,26 @@ mode — hold the line on them.
 - **Every save refetches and re-renders.** After a write, immediately reload and re-render
   the affected view so what's on screen reflects what's stored — never assume the write
   landed.
+- **Hands-free is native-SDK-only — do not re-attempt device-side auto-speaker.** Proven on
+  a Pixel 4a (23 June 2026): a system-dialler call (CALL_PHONE/ACTION_CALL) is owned by
+  Android, and Android 13+ blocks a backgrounded third-party app from routing its audio.
+  Auto-speaker works only via the native Twilio Android SDK owning the call. The offline
+  device-side fallback fires a plain carrier call without hands-free (user taps speaker
+  manually) — expected, not a bug. Do not burn time re-trying AudioManager speaker routing
+  on a system-dialler call; ruled out on hardware.
+- **Contact lookup is backend-from-Airtable (Option B), never client-from-Memberstack.**
+  The call path fetches contacts via the backend using the stored `member_airtable_id` —
+  not by reading `currentMember.customFields` in JS. Keeps the call path independent of
+  Memberstack so the v1→v2 migration can't break it.
+- **Time-critical logic is server- or FCM-driven, never WebView `setTimeout`.** Android
+  freezes WebView JavaScript (timers, and `evaluateJavascript` delivery) when the app is
+  backgrounded; a foreground service keeps the *process* alive but does NOT keep WebView
+  timers running. So anything that must complete while the app is backgrounded —
+  contact-stepping, terminal/exhaustion handling, audit writes, escalation hand-offs — MUST
+  be driven by the server (e.g. Twilio StatusCallback → server logic) or an FCM push, never
+  by client-side `setTimeout`. The WebView is a UI that catches up when it wakes; it is never
+  a dependency on the critical path. (Reinforces Principle I.4 — the reactive path fails
+  loudly, never silently.)
 
 ---
 
@@ -199,4 +252,4 @@ document governs the detail — but nothing in those documents overrides the pri
 
 ---
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-18 | **Last Amended**: 2026-06-18
+**Version**: 1.3.0 | **Ratified**: 2026-06-18 | **Last Amended**: 2026-07-01

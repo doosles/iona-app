@@ -1,6 +1,6 @@
 # Implementation Plan: Iona App — The Receiving App (Product A)
 
-**Branch**: `001-receiving-app` | **Date**: 2026-06-18 | **Spec**: [spec.md](spec.md)
+**Branch**: `001-receiving-app` | **Date**: 2026-06-18 | **Spec**: [spec.md](06%20Specs/001-receiving-app/spec.md)
 
 **Input**: Feature specification from `specs/001-receiving-app/spec.md`
 

@@ -7,7 +7,7 @@ on a real Android device. Run these after each build phase, in order. Not a test
 suite — a human-operated playbook.
 
 **References**:
-- Spec: [spec.md](spec.md)
+- Spec: [spec.md](06%20Specs/001-receiving-app/spec.md)
 - Data model: [data-model.md](data-model.md)
 - Contracts: [alarm-trigger.md](contracts/alarm-trigger.md),
   [push-registration.md](contracts/push-registration.md),
