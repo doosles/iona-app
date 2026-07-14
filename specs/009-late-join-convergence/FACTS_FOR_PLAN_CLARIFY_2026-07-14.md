@@ -103,6 +103,25 @@ REUSE. Summary:
 Plan note: the join-confirmation spike (participant-event wiring on the flagship path) is the
 first thing plan proves, and it doubles as the evidence for ruling 1's number.
 
+## R-009-6 — ONE PATH invariant (owner-added, 14 Jul) — mechanism-bearing binding, verbatim
+
+Spec carries it as FR-018 + SC-009 (mechanism-free). The concrete binding for plan:
+
+- Reaching phase is shared code both modes — any mode check there beyond arming the join layer is
+  a spec violation.
+- Join-phase states extend the ONE reducer (the 006/007 SignalAudio reducer) — never a second
+  machine.
+- Terminals converge to one card family + one local-clip speak for both modes — **the phone-leg
+  exhausted `<Say>` is DELETED, not kept alongside.**
+- **The `refreshSignalAudioCache` hands-free exclusion is DELETED** — one cache pipeline serves
+  both modes (this is also what makes the dropped/failed-join cards offline-speakable, R-008.1-2).
+- Mode-only states (dropped card, failed-join card) are states only a live call can enter, not a
+  second path — existing shell, new copy, zero new surfaces.
+- Proof lives in the matrix: standard path bit-for-bit unchanged AND the hands-free reaching phase
+  demonstrably the same code path, not a replica.
+
+Vaulted: `03 Decisions/2026-07-14 R-009-6 — ONE PATH invariant.md`.
+
 ## Explicitly OUT of 009 (owner-confirmed at kickoff, 14 Jul)
 
 - Sweep-position narration / "calling 1 of 2, 2 of 2" — separate micro-item with the parked N-of-M

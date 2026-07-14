@@ -5,8 +5,9 @@
 **Created**: 2026-07-14
 
 **Status**: Settled — all five clarify flags RULED by the 2026-07-14 owner rulings (vaulted as
-`03 Decisions/2026-07-14 R-009 clarify rulings — window, pre-brief line, reuse, halt, story 4.md`;
-applied under Clarifications below). Ready for `/speckit.plan` — where the join-confirmation spike
+`03 Decisions/2026-07-14 R-009 clarify rulings — window, pre-brief line, reuse, halt, story 4.md`)
+PLUS the owner-added **R-009-6 ONE PATH invariant** (vaulted as `03 Decisions/2026-07-14 R-009-6 —
+ONE PATH invariant.md`); all applied under Clarifications below. Ready for `/speckit.plan` — where the join-confirmation spike
 (participant-event wiring on the flagship path) is the first thing proven, doubling as the evidence
 for the provisional 8-second window. This is the riskiest change on the board and is NEVER bundled
 with any other feature (standing owner ruling). Mockups before any UI code; every new spoken line
@@ -112,6 +113,8 @@ L5, mid-message call failure, outcome-after-next-start skip, L9 sweep-aware mask
 outcomeSpoken guard, atomic clips, settle-at-terminal freeze) applies **verbatim, with one delta in
 every cell**: the person's acoustic location is their own device at full Signal quality — never a
 phone line, never hold audio. No cell of Part A introduces new copy or new narration behaviour.
+Per R-009-6, Part A is not a replica of the standard path — it IS the standard path: the same
+shared code runs both modes, and the only thing mode may gate anywhere is arming the join layer.
 
 | Position \ Outcome | no_answer | voicemail | declined (press-9) | sms_sent | accepted (press-1) | missing/lost |
 |---|---|---|---|---|---|---|
@@ -388,6 +391,21 @@ conversation is loud on speaker; the join changed nothing about loudness.
   mechanisms where an existing one serves. Reuse the existing terminal-card shells, the existing
   clip pipeline, and the existing announce machinery. Any proposed new surface or mechanism at
   plan stage carries the burden of showing no existing one serves.
+- **FR-018**: ONE PATH invariant (ruled, R-009-6): 009 MUST NOT create two user paths. Hands-free
+  and Oran's Signal ride the SAME path — same screens, same cards, same edge-case and
+  connection-loss handling — with mode gating exactly ONE thing: the join layer at contact-accept.
+  Binding consequences, each independently checkable:
+  (a) the reaching phase is shared code in both modes — any mode check inside it beyond arming the
+  join layer is a spec violation;
+  (b) join-phase states extend the ONE existing state machine — never a second machine;
+  (c) terminals converge to one card family + one local-clip speak for both modes — the phone-line
+  exhausted announcement is DELETED, not kept alongside;
+  (d) the hands-free exclusion from the per-contact clip cache is DELETED — one cache pipeline
+  serves both modes;
+  (e) mode-only states (the dropped card, the failed-join card) are states only a live call can
+  enter — not a second path: existing shell, new copy, zero new surfaces.
+  Proof lives in the permutation matrix: the standard path bit-for-bit unchanged (SC-008) AND the
+  hands-free reaching phase demonstrably the same code path, not a replica (SC-009).
 
 ### Key States *(no data entities — this feature defines moments)*
 
@@ -430,6 +448,11 @@ conversation is loud on speaker; the join changed nothing about loudness.
   (terminal dismissed or call ended) the pre-episode media volume is restored.
 - **SC-008**: The standard path shows zero behavioural difference before/after this feature, and
   the engine's dialling order, schedule, and outcome classification are byte-identical in the log.
+- **SC-009**: (R-009-6 proof) Inspection of the shipped change confirms the ONE PATH invariant:
+  zero mode checks in the reaching phase beyond arming the join layer; join-phase states live in
+  the one existing state machine; one terminal card family + one local-clip speak serves both
+  modes with the phone-line exhausted announcement deleted; the hands-free clip-cache exclusion
+  deleted. Zero second-path artifacts remain.
 
 ## Clarifications
 
@@ -468,6 +491,18 @@ where an existing one serves. Deck rules all final wording; spec copy is working
   the pre-episode media volume, restore at episode end (terminal dismissed or call ended) — a
   maxed volume left behind ambushes someone at midnight. Story 4 stays severable by construction
   and is cut only if the build runs long.
+- Q (owner-added, R-009-6): may 009 leave hands-free and standard as two user paths? → A: **NO —
+  ONE PATH invariant.** Hands-free and Oran's Signal ride the SAME path — same screens, cards,
+  edge-case and connection-loss handling — with mode gating exactly ONE thing: the join layer at
+  contact-accept. Binding: the reaching phase is shared code in both modes (any mode check there
+  beyond arming the join layer is a spec violation); join-phase states extend the ONE state
+  machine, never a second one; terminals converge to one card family + one local-clip speak for
+  both modes (the phone-line exhausted announcement is deleted, not kept alongside); the existing
+  hands-free exclusion from the per-contact clip cache is deleted — one cache pipeline. Mode-only
+  states (dropped card, failed-join card) are states only a live call can enter, not a second
+  path — existing shell, new copy, zero new surfaces. Proof lives in the matrix: standard path
+  bit-for-bit unchanged AND the hands-free reaching phase demonstrably the same code path, not a
+  replica. Vaulted: `03 Decisions/2026-07-14 R-009-6 — ONE PATH invariant.md`.
 
 ## Assumptions
 
