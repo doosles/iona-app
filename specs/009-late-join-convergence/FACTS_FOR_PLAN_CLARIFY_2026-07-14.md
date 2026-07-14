@@ -81,16 +81,27 @@ governs loudness. Story 4 = (a) media-stream volume to max + speaker routing for
 activation, (b) call-stream volume to max at VoIP connect, (c) restore policy at episode end
 (owner ruling — flag for clarify). Severable by construction.
 
-## Failed-join-at-accept window (clarify items, owner rulings)
+## Failed-join-at-accept window — ✅ ALL FIVE RULED 2026-07-14 (R-009 clarify rulings)
 
-1. Window length before the contact is told the join hasn't happened (008 ruled 3s as a promptness
-   ceiling in its now-superseded context — re-rule for this design).
-2. Contact copy for the failed-join line (emotional register — owner's).
-3. What the member's screen shows during their own failed join (the 008 dropped-card pattern is
-   the honesty precedent).
-4. Whether the engine continues to the next contact after a failed join, and what the accepting
-   contact is told if so (interacts with the anchor teardown — design carefully).
-5. (Story 4) Restore policy at episode end; ship-inside-009 vs severed micro-feature.
+Applied to spec.md (Clarifications, Session 2026-07-14); vaulted as `03 Decisions/2026-07-14 R-009
+clarify rulings — window, pre-brief line, reuse, halt, story 4.md`. Standing directive: MAXIMUM
+REUSE. Summary:
+
+1. Window = **8s from press-1, provisional** — confirmed/moved on the plan spike's wire-measured
+   join latency, not re-debated. One boundary fires both terminals (member card + graceful contact
+   close, no second line).
+2. Contact failed-join copy **DISSOLVED into the pre-briefed bridge line** (spoken at press-1;
+   covers failed join AND later drop; no separate failed-join line exists).
+3. Member failed-join screen = **reuse the 008 dropped-card shell**, speaks locally via the 009
+   per-contact clip set. Working copy: "[Name] answered and knows you need help — tap below to
+   call them."
+4. **HALT, no continuation** after a failed join (no re-dial — 008-I1 double-activation collision
+   ruled out; press-1 halt stands).
+5. Story 4: **restore prior volume at episode end; ships INSIDE 009**, severable, cut only if the
+   build runs long.
+
+Plan note: the join-confirmation spike (participant-event wiring on the flagship path) is the
+first thing plan proves, and it doubles as the evidence for ruling 1's number.
 
 ## Explicitly OUT of 009 (owner-confirmed at kickoff, 14 Jul)
 

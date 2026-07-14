@@ -4,10 +4,19 @@
 
 **Created**: 2026-07-14
 
-**Status**: Draft — awaiting `/speckit.clarify` (five flagged rulings, listed under Clarifications).
-This is the riskiest change on the board and is NEVER bundled with any other feature (standing owner
-ruling). Mockups before any UI code; every new spoken line goes to the deck FIRST (copy gate before
-build); on-device is the only verification bar.
+**Status**: Settled — all five clarify flags RULED by the 2026-07-14 owner rulings (vaulted as
+`03 Decisions/2026-07-14 R-009 clarify rulings — window, pre-brief line, reuse, halt, story 4.md`;
+applied under Clarifications below). Ready for `/speckit.plan` — where the join-confirmation spike
+(participant-event wiring on the flagship path) is the first thing proven, doubling as the evidence
+for the provisional 8-second window. This is the riskiest change on the board and is NEVER bundled
+with any other feature (standing owner ruling). Mockups before any UI code; every new spoken line
+goes to the deck FIRST (copy gate before build); on-device is the only verification bar.
+
+**Standing directive across all five rulings (owner, verbatim in substance): MAXIMUM REUSE.** This
+is the third pass over the member and contact legs — reuse existing terminal-card shells, the
+existing clip pipeline, the existing announce machinery. No new UI surfaces, no new mechanisms
+where an existing one serves. The deck rules all final wording; all copy in this spec is working
+copy.
 
 **Input**: User description: "One audio system, one screen, join at accept. Give the hands-free
 person the same Oran they'd have had on the standard path — the same voice, the same honesty, the
@@ -67,12 +76,17 @@ survive it — and gains a spoken form here (Story 3).
 
 **What the contact experiences.** The contact's side changes as little as possible: same call, same
 announcement, same press-1 accept. The one new moment: between their press of 1 and the person
-arriving there may be a short natural pause. It must feel deliberate and brief — a spoken bridge
-line ("Connecting you with [first name] now") covers it. If the person's device cannot join within
-a short, defined window, the contact must be told honestly what is happening and what to do — never
-left in silence wondering if anyone is there. A contact who pressed 1 because someone needs help
-must never be stranded in a silent room. (Exact copy and window length are owner rulings — flagged
-for clarify.)
+arriving there may be a short natural pause. It must feel deliberate and brief — covered by the
+**pre-briefed bridge line** (ruled 2026-07-14, Flag 2): the spoken line immediately after press-1
+carries the safety instruction pre-emptively, covering both a failed join and a later mid-call drop
+with one line, zero detection, zero second announcement — and it lengthens the natural masking
+window for the join to establish. Working copy (deck rules final wording): *"Connecting you with
+[first name] now. If the connection drops, please follow up with [first name] — they've requested
+your help."* There is NO separate contact-side failed-join line anywhere in this feature. If the
+join fails at the window, the contact's leg is gracefully closed with no additional spoken line —
+the pre-brief already told them what to do; **the close IS their cue to act**. A contact who
+pressed 1 because someone needs help is never stranded in a silent room: they are informed at the
+moment of yes, not at the moment of failure.
 
 ---
 
@@ -84,8 +98,11 @@ success/failure × sweep**. Every cell must be honest on all three surfaces — 
 (the one-signal coherence promise carries over untouched). Deck line refs (L*) per deck v1.10, the
 copy authority. New lines are placeholders (N*) and go to the deck FIRST: **N1** member-side join
 announce (only if it differs from the existing "Connecting you with [Name]" connect line), **N2**
-contact-side bridge line, **N3** contact-side failed-join line, **N4** member-side dropped line
-(spoken form of the R-008-5 card copy).
+contact-side pre-briefed bridge line (ruled — carries the follow-up instruction; working copy
+above), **N4** member-side spoken dropped line (spoken form of the R-008-5 card copy), **N5**
+member-side failed-join card line (working copy: *"[Name] answered and knows you need help — tap
+below to call them."*). ~~N3 contact-side failed-join line~~ — DISSOLVED into N2 by the Flag-2
+ruling; it does not exist anywhere in this feature.
 
 ### Part A — Reaching phase (no accept yet): the 007 matrix adopted wholesale
 
@@ -112,15 +129,16 @@ is unchanged on the standard path; on the hands-free path, acceptance opens Part
 ### Part B — Accept-and-join phase (the new cells)
 
 On the hands-free path, a contact's press-1 replaces the L10 terminal with the join sequence. Join
-behaviour is invariant across position and sweep **except** after a failed join, where "contacts
-remaining vs none remaining" splits the cell (both sub-cells flagged for clarify).
+behaviour is invariant across position and sweep — the Flag-4 ruling (HALT, no continuation) makes
+the failed-join cell identical wherever it lands: press-1 halts the sweep today, a human has
+accepted, that stands.
 
-| Accept timing \ Join outcome | **Join confirmed within announce window** | **Join NOT confirmed within window (failed join)** | **Joined, then dropped mid-conversation** |
+| Accept timing \ Join outcome | **Join confirmed within announce window** | **Join NOT confirmed within window (failed join — window ruled 8s from press-1, provisional)** | **Joined, then dropped mid-conversation** |
 |---|---|---|---|
-| **Normal accept** (any position, either sweep, reaching lines played) | Member: join announce (N1 or existing connect line) → contact's voice inside its natural breath — no perceptible seam. Contact: N2 bridge line → the person. Chips: accepted contact settles ✓; screen → live-conversation state. Log: honest accept + connect rows. | Member: screen tells the truth (008 dropped-card honesty precedent; exact behaviour = clarify). Contact: N3 honest line at the window — never silence. Chips/log: honest, no false "connected". Engine continues to next contact or ends = **clarify** (interacts with the call-anchor teardown — design carefully). | R-008-5 truthful card renders AND its line (N4) is SPOKEN locally with the device fully offline (clips on-device — zero fetch at play time). Way-back (re-summon → device-pass floor) intact. Contact side: 008's ruled behaviour, unchanged. |
-| **Fast-ack** (accept on first ring — reaching line may still be playing; incl. single-contact member) | Same as above at maximum speed: atomic clips guarantee no mid-line cut; the 007 settled-screen freeze holds; join is clean even at maximum speed. | Same as above — window and honesty identical at speed. | Same as above. |
+| **Normal accept** (any position, either sweep, reaching lines played) | Member: join announce (N1 or existing connect line) → contact's voice inside its natural breath — no perceptible seam. Contact: N2 pre-briefed bridge line → the person. Chips: accepted contact settles ✓; screen → live-conversation state. Log: honest accept + connect rows. | At window expiry, TWO things fire from one boundary: member's failed-join card (008 dropped-card shell reused — N5 line + device-dial button + re-press way-back) renders AND speaks locally; contact's leg is gracefully closed — NO additional spoken line (the N2 pre-brief was the coverage; the close is the cue to act). Engine: **HALT — no re-dial of further contacts** (recreating the 008-I1 double-activation collision is ruled out). Chips/log: honest, no false "connected". | R-008-5 truthful card renders AND its line (N4) is SPOKEN locally with the device fully offline (clips on-device — zero fetch at play time). Way-back (re-summon → device-pass floor) intact. Contact side: covered by the same N2 pre-brief — they follow up directly; 008's ruled close behaviour unchanged. |
+| **Fast-ack** (accept on first ring — reaching line may still be playing; incl. single-contact member) | Same as above at maximum speed: atomic clips guarantee no mid-line cut; the 007 settled-screen freeze holds; join is clean even at maximum speed. | Same as above — window, both terminals, and halt identical at speed. | Same as above. |
 | **Accept while a previous attempt's outcome line is playing** | Outcome line completes at its atomic boundary, then the join sequence — never two lines fighting; chips already honest per-row. | As normal-accept failed join. | As above. |
-| **Accept at the exhaustion boundary** (last contact accepts as the terminal would fire) | Exactly ONE of {join sequence, exhausted terminal} fires — an accepted contact is never told "no one could help", and a person never hears exhausted-then-a-voice. Accept wins if the join sequence has begun; otherwise terminal truth stands. | Failed join on the last contact with none remaining — the "none remaining" sub-cell of the clarify ruling; whichever way ruled, both legs get honest endings. | As above. |
+| **Accept at the exhaustion boundary** (last contact accepts as the terminal would fire) | Exactly ONE of {join sequence, exhausted terminal} fires — an accepted contact is never told "no one could help", and a person never hears exhausted-then-a-voice. Accept wins if the join sequence has begun; otherwise terminal truth stands. | Identical to every other failed-join cell (halt ruling — position no longer splits it): member card + graceful contact close, honest endings both legs. | As above. |
 
 ### Part C — Edge rows (all must hold)
 
@@ -183,29 +201,40 @@ shown, never inside a call.
 
 ### User Story 2 - The contact is never stranded at the join (Priority: P2)
 
-A contact presses 1 because someone needs help. Between their press and the person arriving there
-is a short natural pause covered by a spoken bridge line, so it feels deliberate and brief. If the
-person's device cannot join within the short, defined window, the contact is told honestly what is
-happening and what to do — never left in a silent room. The person's own screen tells the truth
-about the failed join.
+A contact presses 1 because someone needs help. The spoken line they hear immediately — the
+pre-briefed bridge line — both covers the short natural pause (so it feels deliberate and brief)
+and pre-emptively tells them what to do if the connection ever drops: follow up with the person
+directly. If the person's device cannot join within the ruled 8-second window, the contact's leg
+is gracefully closed with no second announcement — the pre-brief was the coverage; the close is
+their cue to act. At the same boundary, the person's own screen tells the truth: the reused 008
+dropped-card shell with the honest line "[Name] answered and knows you need help — tap below to
+call them", spoken locally. The engine HALTS — a human accepted; no further contacts are re-dialled
+(that would recreate the double-activation collision named in 008-I1). The pre-briefed contact and
+the carded member close the loop by direct call.
 
 **Why this priority**: The join-at-accept is the riskiest new moment this feature creates. The
 never-silent invariant must hold on BOTH legs at that moment, or the convergence has traded the
-person's waiting room for the contact's.
+person's waiting room for the contact's. The ruled shape holds it by pre-briefing (information at
+the moment of yes) rather than detection (a second announcement at the moment of failure).
 
 **Independent Test**: Staged failed-join runs (person's device prevented from joining): the contact
-hears the bridge line, then the honest failed-join line within the ruled window; the person's
-screen shows the ruled truthful state; no leg experiences silence.
+hears the pre-briefed bridge line at press-1; at window expiry their leg closes cleanly with no
+further speech; the member's failed-join card renders and speaks; no further contacts are dialled;
+no leg experiences unexplained silence.
 
 **Acceptance Scenarios**:
 
 1. **Given** a contact presses 1 and the person's device joins within the window, **When** the join
-   completes, **Then** the contact heard the bridge line and then the person, with no perceptible
-   dead air.
-2. **Given** a contact presses 1 and the person's device CANNOT join within the window, **When**
-   the window elapses, **Then** the contact hears the honest line about what is happening, the
-   person's screen tells the truth, and the never-silent invariant holds on both legs.
-3. **Given** the accepting contact hangs up before the person arrives, **When** the join would
+   completes, **Then** the contact heard the pre-briefed bridge line and then the person, with no
+   perceptible dead air.
+2. **Given** a contact presses 1 and the person's device CANNOT join within the 8-second window,
+   **When** the window elapses, **Then** from that one boundary the member's failed-join card
+   (008 shell, N5 line) renders and speaks locally AND the contact's leg is gracefully closed with
+   no additional spoken line — the never-silent invariant holding on both legs because the contact
+   was informed at press-1.
+3. **Given** a failed join, **When** the boundary fires, **Then** the engine halts — no further
+   contact is dialled, and both terminals leave the loop closable by direct call.
+4. **Given** the accepting contact hangs up before the person arrives, **When** the join would
    complete, **Then** the person is never placed into an empty room and both parties receive
    honest, defined endings.
 
@@ -239,10 +268,12 @@ A person who presses for help may have dropped the phone, be across the room, or
 From the moment of activation, Oran's voice plays through the loudspeaker at full volume — not at
 whatever the media volume happened to be after last night's radio. When the live conversation
 begins, it is also on speaker at proper volume. Nothing is restored until the episode ends; a
-person mid-crisis never wants it quieter.
+person mid-crisis never wants it quieter. At episode end (terminal dismissed or call ended) the
+remembered pre-episode volume is restored — a maxed volume left behind ambushes someone at
+midnight (ruled, Flag 5).
 
-**Why this priority**: Severable by construction (owner-ruled) — may ship inside 009 or be cut to
-its own micro-feature without touching the rest. The join design never depends on it.
+**Why this priority**: Ships INSIDE 009 (ruled, Flag 5); severable by construction and cut only if
+the build runs long. The join design never depends on it.
 
 **Independent Test**: Set media volume to zero, activate: Oran is loud from the first word; the
 conversation is loud on speaker; the join changed nothing about loudness.
@@ -251,7 +282,8 @@ conversation is loud on speaker; the join changed nothing about loudness.
 
 1. **Given** media volume at zero, **When** a hands-free person activates help, **Then** Oran's
    voice is at full loudspeaker volume from the first word, the live conversation is loud on
-   speaker, and no volume is restored until the episode ends.
+   speaker, and no volume is restored until the episode ends — at which point the pre-episode
+   volume is restored.
 
 ---
 
@@ -266,8 +298,8 @@ conversation is loud on speaker; the join changed nothing about loudness.
   join confirmation keys off a positive join event only.
 - **Contact hangs up between press-1 and the person's arrival**: no empty-room join; honest endings
   both sides; "who counts as present" under the new order of arrival is settled at plan.
-- **Failed join, contacts remaining vs none remaining**: whichever continuation is ruled at
-  clarify, every leg in both sub-cases gets an honest, defined ending.
+- **Failed join at any position**: identical behaviour whether contacts remain or not (halt
+  ruling) — member card + graceful contact close; every leg gets an honest, defined ending.
 - **Repeat episode**: a re-summon after any outcome (failed join, drop, exhaustion) behaves
   identically to a first summon — no degraded second run.
 - **Duplicate summon mid-episode**: FR-015 behaviour unchanged; local narration is the audible
@@ -291,20 +323,31 @@ conversation is loud on speaker; the join changed nothing about loudness.
   successful join the person perceives no seam and no dead air between Oran's voice and the
   contact's.
 - **FR-005**: The contact's experience MUST change as little as possible: same call, same
-  announcement, same press-1 accept (002 FR-006 unchanged). Between press-1 and the person's
-  arrival the contact MUST hear a spoken bridge line so the pause feels deliberate and brief.
-- **FR-006**: If the person's device does not join within a short, defined window after the
-  contact's accept, the contact MUST be told honestly what is happening and what to do — never left
-  in silence. Window length and line copy are owner rulings [NEEDS CLARIFICATION: window length —
-  008's 3s promptness ceiling was ruled in a now-superseded context and must be re-ruled here;
-  contact failed-join copy — emotional register, owner's].
-- **FR-007**: During and after the person's own failed join, the person's surface MUST tell the
-  truth (the 008 dropped-card pattern is the honesty precedent) [NEEDS CLARIFICATION: exact member
-  screen behaviour on failed join].
-- **FR-008**: Whether the attempt continues to the next contact after a failed join — and what the
-  accepting contact is told if it does — is an owner ruling [NEEDS CLARIFICATION: interacts with
-  the call-anchor teardown; both the contacts-remaining and none-remaining sub-cases must resolve
-  to honest, defined endings for every reachable party whichever way ruled].
+  announcement, same press-1 accept (002 FR-006 unchanged). Immediately after press-1 the contact
+  MUST hear the **pre-briefed bridge line** (ruled, Flag 2): one spoken line that covers the
+  natural pause AND pre-emptively carries the safety instruction — what to do if the connection
+  drops — covering both a failed join and a later mid-call drop with zero detection and zero
+  second announcement. Working copy (deck rules final wording): *"Connecting you with [first name]
+  now. If the connection drops, please follow up with [first name] — they've requested your
+  help."* There is NO separate contact-side failed-join line anywhere in this feature.
+- **FR-006**: The failed-join window is **8 seconds from press-1** (ruled, Flag 1 — provisional:
+  the plan-stage join-confirmation spike measures real join latency on the wire, and the number is
+  confirmed or moved on that evidence, not re-debated). At window expiry, TWO things MUST fire
+  from the one boundary: the member's failed-join card renders and speaks (FR-007), and the
+  contact's leg is gracefully closed with NO additional spoken line — the pre-brief was the
+  coverage; the close IS their cue to act. No silent indefinite room, no new copy.
+- **FR-007**: The member's failed-join surface MUST reuse the 008 dropped-card shell — identical
+  anatomy: honest line + device-dial button + re-press way-back — and MUST speak its line locally
+  via the 009 per-contact clip set (offline-safe by construction). No new card. The copy relays
+  ONLY what is true — the contact answered and knows help is needed; explicitly NOT "has been
+  asked to call you" (nobody was asked; they were pre-briefed). Working copy: *"[Name] answered
+  and knows you need help — tap below to call them."*
+- **FR-008**: A failed join MUST HALT the attempt — no continuation, no re-dial of further
+  contacts (ruled, Flag 4: press-1 halts the sweep today, a human has accepted, that stands;
+  continuing would recreate the double-activation collision named in 008-I1). Failed join = honest
+  terminal on both legs; the pre-briefed contact and the carded member close the loop by direct
+  call. Never-silent holds on both legs. Beyond the two terminals above, existing halt behaviour
+  changes NOTHING.
 - **FR-009**: Join confirmation MUST key off a positive event confirming the person's presence in
   the conversation — never off the absence of events (durable platform fact: passive signals cannot
   detect a dead radio). No party may be told the person has joined before that positive
@@ -320,33 +363,46 @@ conversation is loud on speaker; the join changed nothing about loudness.
   and its line MUST also be SPOKEN, locally, with the device fully offline: zero network fetch at
   play time is the bar. Whether the spoken line carries the contact's name is an owner ruling at
   the deck stage.
-- **FR-013**: (Story 4 — severable) From activation, Oran's local voice MUST play through the
-  loudspeaker at full volume regardless of prior media volume; the live conversation MUST also be
-  on speaker at proper volume; nothing is restored until the episode ends [NEEDS CLARIFICATION:
-  restore policy at episode end — restore prior volume or leave].
+- **FR-013**: (Story 4 — ships INSIDE 009; severable by construction, cut only if the build runs
+  long — ruled, Flag 5) From activation, Oran's local voice MUST play through the loudspeaker at
+  full volume regardless of prior media volume; the live conversation MUST also be on speaker at
+  proper volume; nothing is restored until the episode ends. The pre-episode media volume MUST be
+  remembered and restored at episode end (terminal dismissed or call ended) — a maxed volume left
+  behind ambushes someone at midnight.
 - **FR-014**: The engine is untouched: who is dialled, in what order, on what schedule, and how
   outcomes are classified MUST NOT change. The standard (non-hands-free) path MUST be bit-for-bit
   identical to before this feature.
-- **FR-015**: Every new spoken line this feature needs (at minimum: the contact-side bridge line,
-  the contact-side failed-join line, the member-side spoken dropped line, and the member-side join
-  announce if it differs from the existing connect line) MUST go to the deck FIRST and be
-  owner-approved before build — the copy gate; the owner rules emotional register.
+- **FR-015**: Every new spoken line this feature needs (ruled set: **N2** the contact-side
+  pre-briefed bridge line, **N5** the member-side failed-join card line, **N4** the member-side
+  spoken dropped line, and **N1** the member-side join announce if it differs from the existing
+  connect line — there is no contact-side failed-join line) MUST go to the deck FIRST and be
+  owner-approved before build — the copy gate; the owner rules emotional register. All copy in
+  this spec is working copy; the deck rules final wording.
 - **FR-016**: The never-silent invariant MUST hold on every leg in every cell: no person and no
   contact is ever left in unexplained silence by any path of this feature, and any failure on this
   path MUST surface visibly and audibly (002 FR-012), with the device-pass way-back floor (002
-  FR-016) remaining reachable beneath it.
+  FR-016) remaining reachable beneath it. (Under the ruled failed-join shape, the contact's
+  informed state is established at press-1 by the pre-brief — a graceful close after it is a cue,
+  not silence.)
+- **FR-017**: MAXIMUM REUSE (standing directive across all rulings): no new UI surfaces, no new
+  mechanisms where an existing one serves. Reuse the existing terminal-card shells, the existing
+  clip pipeline, and the existing announce machinery. Any proposed new surface or mechanism at
+  plan stage carries the burden of showing no existing one serves.
 
 ### Key States *(no data entities — this feature defines moments)*
 
 - **Local reaching**: the person's device narrating the live attempt at Signal quality; no call.
 - **The moment of yes**: a contact's press-1 — the only event that may bring the person into a
   live call.
-- **The join window**: the short, defined span between accept and confirmed join, masked by the
-  connect announcement on the person's side and the bridge line on the contact's side.
+- **The join window**: 8 seconds from press-1 (provisional — confirmed or moved on the plan-stage
+  spike's wire-measured join latency), masked by the connect announcement on the person's side and
+  the pre-briefed bridge line on the contact's side.
 - **Joined**: positive confirmation the person is present in the conversation — the only state in
   which anyone may be told the person has joined; arms everything downstream that previously armed
   on accept.
-- **Failed join**: the window elapsed without positive confirmation — both legs told the truth.
+- **Failed join**: the window elapsed without positive confirmation — ONE boundary fires BOTH
+  terminals: the member's card (008 shell, spoken locally) and the contact's graceful close (no
+  second line — the pre-brief was the coverage). The attempt halts.
 - **Dropped after join**: 008's territory, inherited: truthful card, now spoken, fully offline.
 - **Exhausted locally**: the honest terminal spoken on-device; retry card; no call ever existed.
 
@@ -362,30 +418,56 @@ conversation is loud on speaker; the join changed nothing about loudness.
 - **SC-003**: On successful joins, the person hears no dead air: Oran's announcement flows into the
   contact's voice within the announcement's natural breath on 100% of staged success runs; the
   contact hears the bridge line and then the person.
-- **SC-004**: On staged failed joins, the contact hears the honest failed-join line within the
-  ruled window on 100% of runs; zero contacts left in silence beyond the window across the matrix.
+- **SC-004**: On staged failed joins: 100% of runs fire both terminals from the one 8-second
+  boundary — the member's card renders and speaks, and the contact's leg closes gracefully with
+  zero additional spoken lines; zero contacts held in an open room beyond the window; zero
+  further contacts dialled after any failed join.
 - **SC-005**: Zero cells in the executed matrix where audio, chips, and log diverge.
 - **SC-006**: The dropped-line clip plays fully offline (device radio dead) with zero fetch at play
   time, on 100% of staged drop runs; the 008 card and way-back behave unchanged.
 - **SC-007**: (Story 4) With media volume at zero at activation, Oran is audibly loud from the
-  first word and the conversation is loud on speaker, on every staged run.
+  first word and the conversation is loud on speaker, on every staged run — and at episode end
+  (terminal dismissed or call ended) the pre-episode media volume is restored.
 - **SC-008**: The standard path shows zero behavioural difference before/after this feature, and
   the engine's dialling order, schedule, and outcome classification are byte-identical in the log.
 
 ## Clarifications
 
-### Pending (for `/speckit.clarify`)
+### Session 2026-07-14 *(owner rulings R-009; vaulted as `03 Decisions/2026-07-14 R-009 clarify
+rulings — window, pre-brief line, reuse, halt, story 4.md`)*
 
-1. **Failed-join window length** — how long after the contact's press-1 before the contact is told
-   the join hasn't happened (008 ruled 3s as a promptness ceiling in its now-superseded context —
-   re-rule for this design).
-2. **Contact failed-join copy** — the honest line's wording (emotional register — owner's; deck).
-3. **Member's screen on their own failed join** — exact truthful state (008 dropped-card pattern is
-   the precedent).
-4. **Continuation after a failed join** — does the engine continue to the next contact, and what is
-   the accepting contact told if so (interacts with the call-anchor teardown — design carefully).
-5. **Story 4 restore policy** — at episode end, restore prior volume or leave at maximum; and
-   whether Story 4 ships inside 009 or is severed to its own micro-feature.
+Standing directive across all five: **MAXIMUM REUSE** — third pass over these legs; reuse existing
+terminal-card shells, clip pipeline, announce machinery; no new UI surfaces, no new mechanisms
+where an existing one serves. Deck rules all final wording; spec copy is working copy.
+
+- Q: Failed-join window length? → A: **8 SECONDS from press-1, provisional.** The window fires TWO
+  things at expiry from one boundary: the member's failed-join card renders and speaks, and the
+  contact's leg is gracefully closed — no additional spoken line (the pre-brief is the coverage;
+  the close IS their cue to act). No silent indefinite room, no new copy. The plan-stage
+  join-confirmation spike measures real join latency on the wire; the number is confirmed or moved
+  on that evidence, not re-debated.
+- Q: Contact failed-join copy? → A: **DISSOLVED into the pre-briefed bridge line.** The safety
+  instruction folds into the line heard immediately after press-1 — pre-emptive, covering both a
+  failed join and a later mid-call drop with one line, zero detection, zero second announcement —
+  and it lengthens the natural masking window. Working copy: *"Connecting you with [first name]
+  now. If the connection drops, please follow up with [first name] — they've requested your
+  help."* Goes to the deck as the contact-side bridge line. There is NO separate contact-side
+  failed-join line anywhere in this feature.
+- Q: Member screen on their own failed join? → A: **Reuse the 008 dropped-card shell.** No new
+  card — identical anatomy (honest line + device-dial button + re-press way-back), speaks locally
+  via the 009 per-contact clip set (offline-safe by construction). Copy relays ONLY what is true —
+  the contact answered and knows help is needed; explicitly NOT "has been asked to call you"
+  (nobody was asked; they were pre-briefed). Working copy: *"[Name] answered and knows you need
+  help — tap below to call them."*
+- Q: Engine continuation after a failed join? → A: **HALT, no continuation.** Press-1 halts the
+  sweep today; a human has accepted; that stands. No re-dial of further contacts — it recreates
+  the double-activation collision named in 008-I1. Failed join = honest terminal on both legs; the
+  pre-briefed contact and the carded member close the loop by direct call. Never-silent holds on
+  both legs. Already covered by existing behaviour — change nothing beyond the two terminals.
+- Q: Story 4 restore policy + ship call? → A: **Restore prior volume; ships INSIDE 009.** Remember
+  the pre-episode media volume, restore at episode end (terminal dismissed or call ended) — a
+  maxed volume left behind ambushes someone at midnight. Story 4 stays severable by construction
+  and is cut only if the build runs long.
 
 ## Assumptions
 
