@@ -1,30 +1,91 @@
 /* === Theme tokens === */
 
 :root {
-  --bg: #081424;
-  --surface: #0C1C30;
-  --border: #1B344F;
+  /* ── US7 — Iona Design System PRIMITIVES (theme-independent ramps; route b: copied, NOT @imported
+     to avoid the website reset/components fighting the app). Identity & fixed elements draw from these. ── */
+  --teal-400:#25C9BA; --teal-500:#13A99B; --teal-600:#0E867A;
+  --amber-300:#F5C97B; --amber-400:#EFB154; --amber-500:#E0973A; --amber-600:#BE7926;
+  --ink-800:#0C1C30; --ink-900:#081424; --ink-950:#050B14;
+  --mist-0:#FFFFFF; --mist-50:#F5F9FB; --mist-100:#ECF2F6; --mist-200:#DCE6ED;
+  --mist-400:#A2B3C2; --mist-600:#586A7A; --mist-700:#3E4F5E;
+  --signal-well:#2BB682; --signal-watch:#E0973A; --signal-alert:#E2604A; --signal-info:#13A99B;
+  --gradient-night: radial-gradient(120% 90% at 70% 0%, #123048 0%, #081424 52%, #050B14 100%);
+
+  /* ── US7 — SEMANTIC tokens, NIGHT default (day overrides on body.light, the element the toggle
+     stamps). Literal values per scope (no derived-from-semantic tokens) → US6-safe: re-resolves on
+     class flip. Night = middle-ground — current SOLID cards on the deep-sea gradient page. ── */
+  --page: var(--gradient-night);   /* deep-sea radial page (night) / flat (day) */
+  --bg: #081424;                   /* solid base colour */
+  --surface: #0C1C30;              /* solid card surface (NOT translucent — middle ground) */
+  --surface-2: #13283F;            /* raised/inset surface */
+  --card: rgba(255,255,255,0.05);  /* tonal settings/orb cards */
+  --bout-bg: #0C1C30;
+  --border: #1B344F;               /* solid navy border */
+  --border-soft: #294662;          /* lighter navy hairline */
   --text: #ECF2F6;
   --text-muted: #586A7A;
-  --bout-bg: #0C1C30;
-  --error: #E2604A;
-  --teal: #25C9BA;
-  --teal-glow: #34ECD9;
+  --text-soft: var(--text-soft);            /* secondary muted (You-card, subs) */
+  --teal: #25C9BA;                 /* Iona identity teal — flips to teal-500 on light */
+  --teal-glow: #34ECD9;            /* bright teal — flips to teal-500 on light */
   --teal-deep: #13A99B;
+  --on-accent: #081424;            /* dark text on teal/cyan fills (both themes) */
+  --error: #E2604A;
+  --orb-glow: 0 0 22px rgba(52,236,217,0.40), 0 0 60px rgba(52,236,217,0.20);  /* night orb halo */
+
+  /* non-colour (unchanged) */
   --radius: 12px;
   --min-touch: 48px;
   --orb-size: clamp(140px, 52vw, 200px);
   --ping-max: min(440px, 88vw);
+
+  /* US8 — message font-set (Handwritten default ↔ Easy-read). FAMILY ONLY; colour/size unchanged.
+     Easy-read override lives on body[data-font-set="easyread"]. US6 size tokens slot in beside these. */
+  --msg-font-iona: 'Dancing Script', cursive;
+  --msg-font-oran: 'Eagle Lake', cursive;
 }
 
+/* ── US7 — DAY scope (DS day palette). Stamped via body.light by the Appearance toggle. Literal
+   values → re-resolve on flip. Page light, cards white, ink text, identity teal → teal-500. ── */
 body.light {
+  --page: #F5F9FB;
   --bg: #F5F9FB;
   --surface: #FFFFFF;
+  --surface-2: #ECF2F6;
+  --card: rgba(15,28,48,0.04);
+  --bout-bg: #FFFFFF;
   --border: #DCE6ED;
+  --border-soft: #DCE6ED;
   --text: #0C1C30;
   --text-muted: #7A8D9D;
-  --bout-bg: #FFFFFF;
+  --text-soft: #6B8299;
+  --teal: #13A99B;
+  --teal-glow: #13A99B;
+  --on-accent: #081424;
+  --error: #E2604A;
+  --orb-glow: 0 8px 24px rgba(19,169,155,0.16);
 }
+
+/* US8 — Easy-read: swap BOTH message faces to Hanken (plain, legible for cursive difficulty).
+   Colour/size untouched — Iona stays teal, Oran stays amber (Option A). Default font_set='app' = Handwritten. */
+body[data-font-set="easyread"] {
+  --msg-font-iona: 'Hanken Grotesk', system-ui, sans-serif;
+  --msg-font-oran: 'Hanken Grotesk', system-ui, sans-serif;
+}
+
+/* US6 — text-size tokens live on BODY (not :root): the body[data-text-size] override of --text-scale
+   below is on the SAME element, so the derived --fs-* re-resolve and scale as a group. (On :root they'd
+   resolve with :root's scale=1 before the body override applied → nothing would scale.) */
+body {
+  --text-scale: 1;                                /* Standard (base); large/xl override below */
+  --fs-message:   calc(18px * var(--text-scale)); /* .iona-msg / .card--oran .iona-msg */
+  --fs-row-label: calc(15px * var(--text-scale)); /* .settings-row-label + .settings-card-label */
+  --fs-hint:      calc(12px * var(--text-scale)); /* .settings-hint */
+  --fs-empty:     calc(13px * var(--text-scale)); /* .settings-empty-state p */
+  --fs-nav:       calc(11px * var(--text-scale)); /* .nav-tab label */
+}
+/* OWNER-TUNABLE: edit only these two numbers. base (Standard) = 1 (above). */
+body[data-text-size="large"] { --text-scale: 1.22; }  /* Large */
+body[data-text-size="xl"]    { --text-scale: 1.44; }  /* Larger */
 
 /* === Base === */
 
@@ -36,7 +97,7 @@ body.light {
 
 html, body {
   height: 100%;
-  background: var(--bg);
+  background: var(--page);
   color: var(--text);
   font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-size: 17px;
@@ -49,6 +110,13 @@ html, body {
 .hidden {
   display: none !important;
 }
+/* OKAY THANKS pre-plan-resolution state: invisible but STILL occupies its flex slot, so I NEED HELP
+   stays half-width on first paint (the non-Beacon two-button geometry) instead of going full-width
+   (the Beacon layout) before the plan is known. _applyBeaconOkayGate resolves it on plan read:
+   non-Beacon → visible; Beacon → .hidden (slot collapses → full-width help). */
+.okay-pending {
+  visibility: hidden;
+}
 
 /* === Screens (base) === */
 
@@ -59,7 +127,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: var(--page);
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
            env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
@@ -156,7 +224,7 @@ button:active {
   width: 100%;
   min-height: var(--min-touch);
   background: var(--teal);
-  color: #081424;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius);
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
@@ -305,8 +373,8 @@ button:active {
 /* === Iona message card (always dark navy — both light and dark modes) === */
 
 .iona-card {
-  background: #0C1C30;
-  border: 1.5px solid #25C9BA;
+  background: var(--surface);
+  border: 1.5px solid var(--teal);
   border-radius: 16px;
   padding: 14px;
   display: flex;
@@ -326,33 +394,33 @@ button:active {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 10px;
   font-weight: 500;
-  color: #FFFFFF;
+  color: var(--text);
   margin-bottom: 5px;
   letter-spacing: 0.02em;
 }
 
 .iona-msg {
-  font-family: 'Dancing Script', cursive;
-  font-size: 18px;
+  font-family: var(--msg-font-iona);  /* US8 token — Handwritten (Dancing Script) ↔ Easy-read (Hanken) */
+  font-size: var(--fs-message);       /* US6 token */
   font-weight: 600;
-  color: #25C9BA;
+  color: var(--teal);
   line-height: 1.5;
 }
 
 .card--oran .iona-msg {
-  font-family: 'Eagle Lake', cursive;
-  font-size: 18px;
+  font-family: var(--msg-font-oran);  /* US8 token — Handwritten (Eagle Lake) ↔ Easy-read (Hanken) */
+  font-size: var(--fs-message);       /* US6 token */
   font-weight: 400;
-  color: #E0973A;
+  color: var(--amber-500);
   line-height: 1.5;
 }
-.card--oran { border-color: #E0973A; }
+.card--oran { border-color: var(--amber-500); }
 .orb--oran { background: radial-gradient(circle at 50% 40%, #F5C97B 0%, #E0973A 60%, #BE7926 100%); }
 
 .iona-time {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  color: #586A7A;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -363,29 +431,70 @@ button:active {
   justify-content: flex-end;
 }
 
-.bout {
-  background: var(--bout-bg);
-  border: 0.5px solid var(--border);
-  border-radius: 12px 4px 12px 12px;
-  padding: 10px 14px;
-  max-width: 75%;
+/* 'You' card — mirrors .iona-card structure on the user's right side, neutral grey. Content-sized
+   (flex item sizes to its content) so "Okay, thanks" hugs its text; max-width is a safety cap only. */
+.bout-card {
+  background: var(--surface);             /* same message surface as .iona-card — themes night↔day (US7) */
+  border: 1.5px solid var(--text-soft);    /* neutral light grey — matches the message text colour */
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  max-width: 85%;
+}
+
+.bout-content {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  align-items: flex-end;          /* right-align header + message — the user's side */
+  gap: 4px;
+  min-width: 0;
 }
 
-.bout-txt {
+.bout-label {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 10px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--text-soft);
+  letter-spacing: 0.02em;
+  margin-bottom: 5px;
 }
 
-.bout-time {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: var(--text-muted);
-  text-align: right;
+.bout-msg-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* check on the LEFT, text on the RIGHT → "Okay, thanks" sits flush against the bubble's right
+     edge, aligned with the "You · time" header above it (a trailing check offset the text left). */
+  flex-direction: row-reverse;
+}
+
+.bout-msg {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: var(--fs-message);   /* US6 token — scales with text-size like the rest of the reading content */
+  font-weight: 500;
+  color: var(--text-soft);                  /* neutral grey/white — not teal/amber, won't compete with Iona/Oran */
+  white-space: nowrap;            /* never wrap "Okay, thanks" at any text size */
+}
+
+.bout-check {
+  font-size: 16px;                /* sensible fixed size; neutral grey to match the card */
+  color: var(--text-soft);
+  flex-shrink: 0;
+}
+
+.bout-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);            /* neutral grey-navy disc — mirrors the 22px orb--sm */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-soft);
+  font-size: 13px;
 }
 
 /* === Warning (push registration failures) === */
@@ -394,7 +503,7 @@ button:active {
   flex-shrink: 0;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 13px;
-  color: #E0973A;
+  color: var(--amber-500);
   padding: 6px 20px;
 }
 
@@ -415,9 +524,9 @@ button:active {
 .btn-okay {
   display: block;
   flex: 1;
-  background: #0C1C30;
-  color: #25C9BA;
-  border: 1.5px solid #25C9BA;
+  background: var(--ink-800);   /* night fill (dark navy) — day variant under body.light below */
+  color: var(--teal);
+  border: 1.5px solid var(--teal);
   border-radius: 14px;
   padding: 28px 10px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
@@ -437,9 +546,9 @@ button:active {
 .btn-alert {
   display: block;
   flex: 1;
-  background: #0C1C30;
-  color: #E0973A;
-  border: 1.5px solid #E0973A;
+  background: var(--ink-800);   /* night fill (dark navy) — day variant under body.light below */
+  color: var(--amber-500);
+  border: 1.5px solid var(--amber-500);
   border-radius: 14px;
   padding: 28px 10px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
@@ -450,16 +559,36 @@ button:active {
   cursor: pointer;
 }
 
+/* US7 — DAY variant for the safety buttons (night unchanged above). They belong to the light theme
+   but stay loud/high-contrast (distress-press buttons). I NEED HELP stays the most prominent: solid
+   amber + white. OKAY is calm/secondary: white fill + teal outline. Scoped to body.light only. */
+body.light .btn-alert {
+  background: var(--amber-500);   /* solid Oran amber — dominant on the light page */
+  color: var(--mist-0);           /* white (high contrast on amber; --on-accent is dark, so #FFFFFF) */
+  border-color: var(--amber-500);
+}
+body.light .btn-okay {
+  background: var(--surface);     /* white fill */
+  color: var(--teal-deep);        /* #13A99B — the day-legible teal */
+  border-color: var(--teal);      /* teal outline (#13A99B in day) */
+}
+body.light .btn-okay.btn--dim {
+  opacity: 0.55;                  /* white+teal-outline still reads on white at rest (vs 0.35 on dark) */
+}
+
 /* Done — ghost style, hidden by default via .hidden class */
 
 #btn-done {
   display: block;
-  flex-shrink: 0;
+  /* Size to content. NOT flex:1 (inherited from .btn-alarm-done — correct for its row sibling
+     #btn-alarm-done, but here #btn-done is a standalone child of the #screen-today flex COLUMN,
+     where flex-grow:1 stretched it to fill all leftover vertical height → the giant button). */
+  flex: 0 0 auto;
   width: calc(100% - 40px);
   margin: 8px 20px 0;
-  background: #04d3e4;
-  color: #0f1829;
-  border: 1px solid #04d3e4;
+  background: var(--teal-glow);
+  color: var(--on-accent);
+  border: 1px solid var(--teal-glow);
   border-radius: 14px;
   padding: 14px;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
@@ -492,7 +621,7 @@ button:active {
   border: none;
   border-radius: 0;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 11px;
+  font-size: var(--fs-nav);  /* US6 token — nav label only; .nav-tab i icon stays fixed 20px */
   font-weight: 500;
   cursor: pointer;
 }
@@ -525,6 +654,26 @@ button:active {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Cap to the viewport so a tall pane (Appearance at Larger text size) can never push the
+     pinned header + × off the top of the screen. Inner .settings-body scrolls instead. */
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow: hidden;
+}
+
+/* Pinned header (grabber + × + tab bar) — never compressed by the scroll body, always
+   reachable regardless of pane height or text size. */
+.settings-grabber,
+.settings-close,
+.settings-tabs { flex-shrink: 0; }
+
+/* Scrollable body — the panes live here; content past the viewport scrolls under the pinned
+   header. General robustness for any long content at any text size (not a US6-only patch). */
+.settings-body {
+  flex: 1 1 auto;
+  min-height: 0;  /* allow the flex child to shrink below content height so overflow scrolls */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .settings-close {
@@ -539,14 +688,6 @@ button:active {
   margin-bottom: 4px;
 }
 
-.settings-title {
-  font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 12px;
-}
-
 .settings-row {
   display: flex;
   align-items: center;
@@ -558,42 +699,381 @@ button:active {
 
 .settings-row-label {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 15px;
+  font-size: var(--fs-row-label);  /* US6 token */
   font-weight: 500;
   color: var(--text);
 }
 
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toggle-switch input { display: none; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.2s;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--mist-0);
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--teal); }
+.settings-hint { font-size: var(--fs-hint); color: var(--text-muted); line-height: 1.4; margin: -2px 2px 10px; }  /* US6 token */
+.toggle-switch input:checked + .toggle-track::after { transform: translateX(18px); }
+
+/* Service-card state line (replaces the old standalone status pill). #settings-status-badge keeps
+   its ID — applyServiceState rewrites className to status-badge[ status-badge--active|--paused]. */
 .status-badge {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.status-badge--active { color: var(--teal-glow); }
+.status-badge--paused { color: var(--signal-watch); }
+
+.btn-pause-restart {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: var(--card);
+  color: var(--text);
+  border: 0.5px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 14px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* US2 — drag-handle grabber (cosmetic; swipe-down dismiss unchanged) */
+.settings-grabber {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  align-self: center;
+  margin-bottom: 8px;
+}
+
+/* US2 — settings tab bar (Service · Appearance · Account) */
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--surface-2);
+  border-radius: 100px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+.settings-tab {
+  flex: 1;
+  height: 40px;
+  background: transparent;
+  border: none;
+  border-radius: 100px;
+  padding: 0 4px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;  /* FIXED chrome — navigation, not reading content; never scales with US6 text-size */
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.settings-tab.is-active {
+  background: var(--surface);
+  color: var(--teal);
+  box-shadow: 0 1px 4px rgba(19,32,32,.18);
+}
+
+/* US2 — tab panes */
+.settings-pane { display: none; flex-direction: column; gap: 4px; }
+.settings-pane.is-active { display: flex; }
+.settings-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 0;
+  color: var(--text-muted);
+}
+.settings-empty-state i { font-size: 30px; opacity: 0.5; }
+.settings-empty-state p {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: var(--fs-empty);  /* US6 token */
+  margin: 0;
+}
+
+/* US2 — orb help button card (decorative orb above the existing toggle row) */
+.orb-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 0.5px solid rgba(37, 201, 186, 0.25);
+  border-radius: 12px;
+  padding: 26px 16px 16px;  /* extra top padding so the orb isn't crowded against the top edge */
+  margin-bottom: 8px;
+}
+.orb-card-visual {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, #E0973A 0%, #B8742A 70%);
+  box-shadow: 0 0 0 5px rgba(37, 201, 186, 0.15), 0 0 18px rgba(224, 151, 58, 0.35);
+}
+.orb-card-row {
+  width: 100%;
+  border-bottom: none;
+  margin-bottom: 0;
+  padding: 4px 0 0;
+}
+
+/* === Settings tonal-card language (visual restyle; one shared class, all three tabs) === */
+.settings-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--min-touch);
+  background: var(--card);
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.settings-card-tile {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: rgba(52, 236, 217, 0.14);
+  color: var(--teal-glow);
+}
+.settings-card-tile--amber {
+  background: rgba(232, 161, 59, 0.16);
+  color: var(--signal-watch);
+}
+.settings-card-label {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: var(--fs-row-label);  /* US6 token */
+  font-weight: 500;
+  color: var(--text);
+}
+.service-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-card-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--text-muted);
+}
+/* Account-tab cards are buttons — strip native chrome, left-align, tappable */
+.account-card {
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: left;
+  cursor: pointer;
+}
+.account-card--signout { margin-top: 16px; }
+.account-card--signout .settings-card-label { color: var(--signal-watch); }
+
+/* === Feature 004 — reactive-method picker (Service pane); live night/day tokens, US6-scaled rows === */
+.method-card { margin-bottom: 8px; -webkit-tap-highlight-color: transparent; }
+.method-eyebrow {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0 0 12px;
+}
+.method-name-oran { color: var(--amber-500); }  /* Oran name tint — identity amber, both themes */
+.method-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; border-radius: 10px;
+  background: var(--card);
+  border: 1.5px solid transparent;
+  cursor: pointer; margin-bottom: 10px;
+  transition: border-color .15s ease, background .15s ease;
+  -webkit-tap-highlight-color: transparent;  /* kill the rectangular WebView tap flash — rows are divs,
+                                                so they never got the button rule (same fix as the orb) */
+}
+.method-row:last-child { margin-bottom: 0; }
+.method-row--selected { background: rgba(52, 236, 217, 0.10); border-color: var(--teal-glow); }
+.method-row--upgrade  { background: rgba(232, 161, 59, 0.08); border-color: rgba(232, 161, 59, 0.25); }
+.method-tile {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.method-tile--teal  { background: rgba(52, 236, 217, 0.14); color: var(--teal-glow); }
+.method-tile--amber { background: rgba(232, 161, 59, 0.16); color: var(--signal-watch); }
+.method-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }  /* column: title-line stacks cleanly above the subtitle (proper block context for the body's two children) */
+.method-title-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.method-title {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: var(--fs-row-label);  /* US6 token — scales with the text-size stepper */
+  font-weight: 500; color: var(--text);
+}
+.method-subtitle {
+  display: block; font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: var(--fs-hint);  /* US6 token — scales */
+  color: var(--text-muted); margin-top: 2px; line-height: 1.4;
+}
+
+/* ── Rounds (sweep-count) selector — Service settings (Memberstack-only). Structure + copy shared with the
+   website dashboard + onboarding; night/day via the app's semantic tokens. ── */
+.rounds-sec { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 18px; margin-bottom: 8px; }
+.rounds-sec .rnd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.rounds-sec .rnd-head-ic { width: 30px; height: 30px; border-radius: 50%; background: var(--teal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--on-accent); }
+.rounds-sec .rnd-head-ic svg { width: 16px; height: 16px; }
+.rounds-sec .rnd-title { margin: 0; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.3; }
+.rounds-sec .rnd-sub { margin: 0 0 14px 40px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+.rounds-sec .rnd-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.rounds-sec .rnd-seg button { cursor: pointer; padding: 14px 0; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 15px; font-weight: 500; color: var(--text); transition: all .12s; }
+.rounds-sec .rnd-seg button.on { border: 2px solid var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); color: var(--teal); }
+.rounds-sec .rnd-preview-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.rounds-sec .rnd-preview-lbl { margin: 0 0 10px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.rounds-sec .rnd-preview { display: flex; flex-direction: column; gap: 8px; }
+.rounds-sec .rnd-row { display: flex; align-items: flex-start; gap: 9px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+.rounds-sec .rnd-row svg { width: 16px; height: 16px; color: var(--teal); margin-top: 1px; flex-shrink: 0; }
+.rounds-sec .rnd-note { margin: 12px 0 0; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 12px; color: var(--text-muted); font-style: italic; }
+
+.method-radio {
+  width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+}
+.method-radio--on { border-color: var(--teal-glow); }
+.method-radio--on::after { content: ""; width: 11px; height: 11px; border-radius: 50%; background: var(--teal-glow); }
+.method-control { flex-shrink: 0; display: flex; align-items: center; }  /* single right-hand slot */
+.method-foot {  /* T019 — one calm caption line under the gesture chooser (US6-scaled, muted) */
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: var(--fs-hint); color: var(--text-muted);
+  margin: 12px 2px 0; line-height: 1.4;
+}
+.method-price {
+  display: none;  /* entitled default: the radio occupies the slot, no pill */
+  flex-shrink: 0; font-size: 12px; font-weight: 600;
+  padding: 5px 11px; border-radius: 99px;
+  background: var(--amber-500); color: var(--ink-900); white-space: nowrap;
+}
+/* Not-entitled (upgrade): the SAME control slot holds exactly the price pill — radio + badge removed,
+   so nothing is appended and the row text keeps full width (SC-004: no jump/reflow vs entitled). */
+.method-row--upgrade .method-radio { display: none; }
+.method-row--upgrade .method-price { display: inline-flex; }
+
+/* === US8 — Appearance: message readability (Handwritten ↔ Easy-read) === */
+.settings-section-label {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 12px;
   font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  background: transparent;
-  border: 0.5px solid var(--border);
+  margin: 4px 2px 10px;
 }
-
-.status-badge--active {
-  color: #2BB682;
-  background: rgba(43, 182, 130, 0.12);
-  border-color: rgba(43, 182, 130, 0.3);
-}
-
-.btn-pause-restart {
-  display: block;
-  width: 100%;
-  background: var(--surface);
-  color: var(--text);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 15px;
-  font-weight: 500;
+.msg-font-option {
+  -webkit-appearance: none;
+  appearance: none;
   text-align: left;
   cursor: pointer;
-  margin-bottom: 4px;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  padding: 14px 14px 16px;
+  margin-bottom: 10px;
+}
+.msg-font-option.is-selected {
+  border-color: var(--teal-glow);
+  background: rgba(52, 236, 217, 0.08);
+}
+.msg-font-option-name {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* Live preview of the actual message text in each face (colour = Iona teal in both — Option A). */
+.msg-font-preview {
+  font-size: var(--fs-message);  /* US6 token — the message-text cards now preview the chosen size (=18px at base) */
+  line-height: 1.4;
+  color: var(--teal);
+}
+.msg-preview-iona { font-family: 'Dancing Script', cursive; font-weight: 600; }
+.msg-preview-easyread { font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 500; }
+.msg-font-check {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 18px;
+  color: var(--teal-glow);
+  opacity: 0;
+}
+.msg-font-option.is-selected .msg-font-check { opacity: 1; }
+
+/* US6 — text-size segmented control + live preview (Appearance). Control chrome is FIXED-size (no token). */
+.text-size-seg {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border-radius: 10px;
+  padding: 3px;
+}
+.text-size-opt {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 6px;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.text-size-opt.is-selected {
+  background: rgba(52, 236, 217, 0.14);
+  color: var(--teal-glow);
+}
+/* Live preview — a real Iona-message render: scales with --fs-message, reflects the US8 font choice. */
+.text-size-preview {
+  font-family: var(--msg-font-iona);
+  font-size: var(--fs-message);
+  color: var(--teal);
+  line-height: 1.4;
+  margin: 4px 2px 14px;
 }
 
 /* === Alarm screens === */
@@ -705,12 +1185,16 @@ button:active {
   font-style: italic;
   font-size: 28px;
   font-weight: 500;
-  color: #25C9BA;
+  color: var(--teal);
   letter-spacing: -0.3px;
   text-align: center;
 }
 
-.oran-orb {
+/* Scoped to the login wrap — bare `.oran-orb` collided with the 007 calling-row pulse dot (same class,
+   two components): this rule's margin-bottom/box-shadow/flex leaked into the row dot (lifting it off-centre
+   — the "dot sits high" regression) while the row rule, later in the file, stomped THIS orb to 7px on the
+   login screen. Scoping both ends restores each component to its own spec (captain polish addendum, 13 Jul). */
+.login-orb-wrap .oran-orb {
   width: 80px;
   height: 80px;
   border-radius: 50%;
@@ -754,8 +1238,8 @@ button:active {
 
 #btn-send-code,
 #btn-verify-code {
-  background: #25C9BA;
-  color: #081424;
+  background: var(--teal);
+  color: var(--on-accent);
   border-radius: 14px;
   padding: 16px;
   font-size: 15px;
@@ -787,20 +1271,20 @@ button:active {
   display: block;
 }
 
-.otp-box.filled { border-color: #25C9BA; }
-.otp-box.error  { border-color: #E2604A; }
+.otp-box.filled { border-color: var(--teal); }
+.otp-box.error  { border-color: var(--error); }
 
 .login-code-sent {
   font-size: 13px;
   text-align: center;
-  color: #25C9BA;
+  color: var(--teal);
   margin-bottom: 20px;
 }
 
 .login-otp-error {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-size: 12px;
-  color: #E2604A;
+  color: var(--error);
   text-align: center;
   margin-bottom: 8px;
 }
@@ -835,8 +1319,8 @@ button:active {
 /* --- Alarm states --- */
 
 .alarm-countdown-card {
-  background: #0C1C30;
-  border: 1.5px solid #E0973A;
+  background: var(--surface);
+  border: 1.5px solid var(--amber-500);
   border-radius: 16px;
   flex: 1;
   display: flex;
@@ -849,14 +1333,14 @@ button:active {
 .alarm-countdown-label {
   font-size: 11px;
   font-weight: 700;
-  color: #E0973A;
+  color: var(--amber-500);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 .alarm-countdown-num {
   font-size: 96px;
   font-weight: 700;
-  color: #E2604A;
+  color: var(--error);
   font-family: 'JetBrains Mono', monospace;
   line-height: 1;
   transition: transform 0.1s;
@@ -866,7 +1350,7 @@ button:active {
 }
 .alarm-countdown-sub {
   font-size: 13px;
-  color: #7A8D9D;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 .btn-cancel {
@@ -874,9 +1358,9 @@ button:active {
   width: 100%;
   padding: 17px;
   background: none;
-  border: 1.5px solid #E0973A;
+  border: 1.5px solid var(--amber-500);
   border-radius: 14px;
-  color: #E2604A;
+  color: var(--error);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -888,8 +1372,8 @@ button:active {
   animation: btnPulseAmber 1.6s ease-in-out infinite;
 }
 .alarm-escalation-card {
-  background: #0C1C30;
-  border: 0.5px solid #1B344F;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
   border-radius: 16px;
   padding: 16px;
   display: flex;
@@ -899,17 +1383,104 @@ button:active {
 .alarm-esc-label {
   font-size: 11px;
   font-weight: 700;
-  color: #E2604A;
+  color: var(--error);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 4px;
+}
+/* 007 — "Oran's Promise" (the escalation capability's product name): Oran's amber, title-case (a name, not a
+   shouted label), slightly larger. Escalation-only; bridge/device-dial keep the plain uppercase label above. */
+/* "Oran's Promise" title — Oran's font (Eagle Lake), amber, centred. The screen is ORAN'S (his
+   escalation) — Dancing Script is Iona's signature and was wrong here (captain polish addendum,
+   13 Jul). Same font his bridge error/terminal labels already carry. Still PINNED, not the US8
+   --msg-font-oran token (which resolves to Hanken in Easy-read — the R006 logotype rule stands;
+   only the character was wrong). Eagle Lake ships weight 400 only; 22px ≈ the mockup's 26px
+   Dancing Script optically (Eagle Lake's x-height is much larger). */
+.alarm-esc-label--oran {
+  font-family: 'Eagle Lake', cursive;
+  color: var(--amber-400);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 22px;
+  text-align: center;
+  margin-bottom: 0;
+}
+.alarm-esc-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  margin-top: -2px;
+  margin-bottom: 4px;
+}
+.alarm-esc-sub[hidden] { display: none; }
+
+/* ── 007 "Oran's Promise" escalation calling card — the signed mockup design (escalation only) ── */
+/* Capacity (captain polish addendum, 13 Jul): the screen must hold up to SIX contacts. min-height:0
+   lets the card shrink to the viewport instead of overflowing .today-messages; the contact list is
+   its own scroll region (header + pulse line stay pinned), spaced chips per the mockup's 9px rhythm.
+   With ≤3 contacts nothing changes — the card stays content-sized, no scrollbar. */
+.alarm-escalation-card--oran { gap: 9px; min-height: 0; }
+.alarm-escalation-card--oran #alarm-contacts-list {
+  display: flex; flex-direction: column; gap: 10px;
+  min-height: 0; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.alarm-escalation-card--oran .alarm-esc-sub {
+  text-align: center;
+  margin: -3px 0 6px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.alarm-escalation-card--oran .alarm-esc-sub::before {   /* leading amber pulse (Oran is live) */
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--amber-500); animation: oranPulse 1.6s ease-out infinite;
+}
+.alarm-escalation-card--oran .alarm-contact-row {       /* flat rows → rounded chips */
+  border-bottom: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 11px;
+  gap: 11px;
+  flex-shrink: 0;   /* chips never compress inside the scrolling list */
+}
+.oran-av {
+  width: 32px; height: 32px; border-radius: 50%; flex: 0 0 32px;
+  display: grid; place-items: center;
+  font-size: 13px; font-weight: 600;
+  background: var(--surface); color: var(--text-muted);
+}
+.oran-av--live { background: rgba(37,201,186,0.16); color: var(--teal-glow); }  /* R006 — live avatar initial TEAL per the signed mockup (was amber) */
+.oran-who { flex: 1; min-width: 0; }
+.oran-nm { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.oran-pos { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.oran-status { font-size: 12px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.oran-status--live { color: var(--teal-glow); }     /* active label (Ringing / Sending a text) */
+.oran-status--amber { color: var(--amber-300); }    /* resolved Oran outcome */
+.oran-status--reached { color: var(--teal); }
+.oran-status--muted { color: var(--text-muted); }   /* waiting / no answer */
+/* Scoped to the status chip — bare `.oran-orb` is ALSO the login screen's 80px breathing orb; the two
+   unscoped rules cross-contaminated (see the login-orb comment). The login rule's margin-bottom:18px was
+   what pushed this dot high — with both rules scoped, plain flex centring is restored (the pre-regression
+   state the captain signed). Row orbs only ever render inside .oran-status (_callingRowHTMLOran). */
+.oran-status .oran-orb { width: 7px; height: 7px; border-radius: 50%; background: var(--amber-500); animation: oranPulse 1.4s ease-out infinite; }
+.oran-tick { color: var(--teal); font-weight: 700; }
+@keyframes oranPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(224,151,58,0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(224,151,58,0); }
+  100% { box-shadow: 0 0 0 0 rgba(224,151,58,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* both scoped orbs — a bare .oran-orb would now lose the specificity contest to the scoped rules */
+  .oran-status .oran-orb, .login-orb-wrap .oran-orb,
+  .alarm-escalation-card--oran .alarm-esc-sub::before { animation: none; }
 }
 .alarm-contact-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 7px 0;
-  border-bottom: 0.5px solid #1B344F;
+  border-bottom: 0.5px solid var(--border);
 }
 .alarm-contact-row:last-child { border-bottom: none; }
 .alarm-dot {
@@ -917,14 +1488,23 @@ button:active {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.alarm-dot--waiting { background: #294662; }
-.alarm-dot--trying { background: #E0973A; }
-.alarm-dot--done { background: #2BB682; }
-.alarm-contact-name { font-size: 13px; color: #ECF2F6; flex: 1; }
-.alarm-contact-status { font-size: 11px; color: #586A7A; }
+.alarm-dot--waiting { background: var(--border-soft); }
+.alarm-dot--trying { background: var(--amber-500); }
+.alarm-dot--done { background: var(--signal-well); }
+.alarm-contact-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.alarm-contact-name { font-size: 13px; color: var(--text); }
+.alarm-contact-phone { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.01em; }
+.alarm-contact-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
+.alarm-contact-pos { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.alarm-contact-status { font-size: 11px; color: var(--text-muted); }
+.alarm-contact-status--trying { color: var(--amber-500); }
+.alarm-contact-status--done { color: var(--signal-well); }
+/* 007 — escalation "in-progress" label (Ringing / Sending a text): teal text beside an amber pulse-dot.
+   Amber is reserved for Oran's resolved outcomes + the live pulse, not the active label itself. */
+.alarm-contact-status--live { color: var(--teal-glow); }
 .alarm-terminal-card {
-  background: #0C1C30;
-  border: 0.5px solid #2BB682;
+  background: var(--surface);
+  border: 0.5px solid var(--signal-well);
   border-radius: 16px;
   flex: 1;
   display: flex;
@@ -940,17 +1520,130 @@ button:active {
   background: rgba(43,182,130,0.15);
   border: 1px solid rgba(43,182,130,0.3);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; color: #2BB682;
+  font-size: 18px; color: var(--signal-well);
 }
 .alarm-terminal-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ECF2F6;
+  color: var(--text);
 }
 .alarm-terminal-sub {
   font-size: 12px;
-  color: #586A7A;
+  color: var(--text-muted);
   line-height: 1.5;
+}
+/* Bridge SUCCESS terminal — two registers. Connection lead + name are Iona's VOICE: bound to the
+   US8 message font (--msg-font-iona) so they render cursive in Handwritten and plain Hanken in
+   Easy-read, matching her daily messages. The instruction is functional safety text: ALWAYS plain,
+   never cursive. (Resolved/success card only — exhausted/duration use plain textContent, unaffected.) */
+.terminal-conn-lead {
+  display: block;
+  font-family: var(--msg-font-iona);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+.terminal-conn-name {
+  display: block;
+  font-family: var(--msg-font-iona);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--teal);            /* Iona identity teal */
+  line-height: 1.25;
+  margin-top: 2px;
+}
+.terminal-instr-line {
+  display: block;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;  /* functional — ALWAYS plain, never cursive */
+}
+.terminal-instr-help {
+  color: var(--amber-500);       /* ties to the amber I NEED HELP button */
+  font-weight: 700;
+}
+.dd-prompt {
+  background: var(--surface);
+  border: 1.5px solid var(--amber-500);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+.dd-prompt-q { font-size: 15px; font-weight: 700; color: var(--text); }
+.dd-prompt-btns { display: flex; gap: 10px; }
+.dd-btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1.5px solid transparent;
+}
+.dd-btn--stop { background: var(--signal-well); color: #06231A; }
+.dd-btn--next { background: none; border-color: var(--border-soft); color: var(--text); }
+.dd-prompt-count { font-size: 12px; color: var(--text-muted); }
+
+/* US5/T021 — in-sheet sign-out confirm (Account tab). Hidden by default via the base rule;
+   shown by the .is-open modifier (two classes — wins source-order over the base, so it never
+   needs the shared .hidden class). Cancel is the larger, prominent default; "Sign out" is the
+   quieter, deliberate action — an accidental tap must not strand an older member out of the app. */
+.logout-confirm { display: none; }
+.logout-confirm.is-open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 4px 6px;
+}
+.logout-confirm-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+.logout-confirm-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 10px;
+}
+.logout-confirm-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.logout-confirm-cancel {
+  display: block;
+  width: 100%;
+  min-height: var(--min-touch);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.logout-confirm-go {
+  display: block;
+  width: 100%;
+  min-height: var(--min-touch);
+  background: transparent;
+  color: var(--amber-500);
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 /* --- Orb backdrop with sonic pings --- */
@@ -980,20 +1673,82 @@ button:active {
   transform: translate(-50%, -50%);
   box-shadow: 0 0 18px rgba(37,201,186,0.45), 0 0 44px rgba(37,201,186,0.22);
   animation: orb-breathe 4.2s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;  /* kill the default rectangular WebView tap flash
+                                                (the orb core is a div, so it never got the
+                                                button rule that zeroes this) */
+}
+/* Circular press feedback — replaces the square default flash. Lives on a ::after pseudo so the
+   running orb-breathe animation (transform/filter/box-shadow on the core) can't override it; the
+   pseudo is clipped to the circle (border-radius:50%) so the cue is round, and pointer-events:none
+   so it never intercepts the help-press click. Shown only when the toggle is on (see :active rule). */
+.orb-backdrop-core::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 3px rgba(52, 236, 217, 0.85);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
 }
 .orb-ping {
   position: absolute;
   border-radius: 50%;
-  border: 5px solid #34ECD9;
+  border: 5px solid var(--teal-glow);
   transform: translate(-50%, -50%);
   animation: sonic-ping 2.8s ease-out infinite;
   animation-fill-mode: backwards;
 }
 .orb-ping--1 { animation-delay: 0s; }
 .orb-ping--2 { animation-delay: 1.4s; }
+
+/* Amber (Oran) pings — shown when service is PAUSED (US1). Hidden by default (Active = teal rings). */
+.orb-ping--amber {
+  border: 5px solid rgba(245, 201, 123, 0.9);
+  animation-name: sonic-ping-amber;
+  display: none;
+}
+.orb-ping--amber-1 { animation-delay: 0.7s; }  /* halfway between teal-1 (0s) and teal-2 (1.4s) */
+.orb-ping--amber-2 { animation-delay: 2.1s; }  /* halfway between teal-2 (1.4s) and next teal-1 (2.8s) */
+
+/* US1 — service PAUSED: amber rings replace teal, with a slower pulse (non-colour cue).
+   Driven by service_status (orb--paused), NOT the orb-button toggle. Amber core stays constant. */
+.orb-backdrop-system.orb--paused .orb-ping--1,
+.orb-backdrop-system.orb--paused .orb-ping--2 { display: none; }
+.orb-backdrop-system.orb--paused .orb-ping--amber {
+  display: block;
+  animation-duration: 4.6s;  /* slower than the teal 2.8s — paused reads calmer */
+}
+
+/* Orb core becomes tappable when button toggle is on */
+.orb-backdrop-system.orb--btn-on .orb-backdrop-core {
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* Circular press cue fires only when ON (and pressable). Feedback only — the press action
+   (_startHelpSequence('orb')) is untouched. */
+.orb-backdrop-system.orb--btn-on .orb-backdrop-core:active::after {
+  opacity: 1;
+}
+
+/* Orb button ON (active) — restore the amber rings alongside the teal so an active orb pulses
+   amber + teal together. (Regression from the US1 refactor, which made amber pings paused-only
+   and dropped the old orb--btn-on amber gating.) The toggle gates help-press only; it must not
+   drop the amber pulse. Paused keeps its teal-hidden / slower-amber treatment (rule above; equal
+   specificity, source order — this rule only adds display, never touches the paused duration). */
+.orb-backdrop-system.orb--btn-on .orb-ping--amber {
+  display: block;
+}
+
 @keyframes sonic-ping {
   0%   { width: var(--orb-size); height: var(--orb-size); opacity: 0; }
   12%  { opacity: 0.6; }
+  100% { width: var(--ping-max); height: var(--ping-max); opacity: 0; }
+}
+@keyframes sonic-ping-amber {
+  0%   { width: var(--orb-size); height: var(--orb-size); opacity: 0; }
+  12%  { opacity: 0.85; }
   100% { width: var(--ping-max); height: var(--ping-max); opacity: 0; }
 }
 @keyframes orb-breathe {
@@ -1001,17 +1756,62 @@ button:active {
   50%       { transform: translate(-50%, -50%) scale(1.05); filter: brightness(1.12); box-shadow: 0 0 28px rgba(37,201,186,0.55), 0 0 60px rgba(37,201,186,0.28); }
 }
 
+/* US1 — persistent paused banner at the top of the Today screen; tap to resume.
+   Amber-tinted (matches the paused = amber language). Hardcoded ambers here are tokenised in US7. */
+.today-paused-banner {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 10px auto 0;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  background: rgba(245, 201, 123, 0.14);
+  border: 0.5px solid rgba(245, 201, 123, 0.4);
+  color: var(--amber-300);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  z-index: 3;
+}
+.today-paused-banner.hidden { display: none; }
+
+/* Voice equaliser — 7 live-audio bars in orb core during active bridge */
+.orb-voice {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 84px; height: 84px;
+  justify-content: center;
+  pointer-events: none;
+}
+.orb-voice.hidden { display: none; }
+.orb-bar {
+  width: 5px;
+  border-radius: 3px;
+  height: 12px;
+  transition: height 80ms linear;
+  flex-shrink: 0;
+}
+.orb-bar--amber { background: linear-gradient(180deg, #F5C97B, #BE7926); }
+.orb-bar--teal  { background: linear-gradient(180deg, #34ECD9, #0E867A); }
+
 /* --- Return to Iona button --- */
 
 .btn-alarm-done {
   display: block;
-  flex-shrink: 0;
-  margin: 10px 14px 0;
-  padding: 17px;
-  background: #04d3e4;
-  border: 1px solid #04d3e4;
+  flex: 1;
+  margin: 0;
+  padding: 28px 10px;
+  background: var(--teal-glow);
+  border: 1px solid var(--teal-glow);
   border-radius: 14px;
-  color: #0f1829;
+  color: var(--on-accent);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -1037,3 +1837,486 @@ button:active {
 }
 .btn-okay.btn--pulse  { animation: btnPulseTeal  1.6s ease-in-out infinite; }
 .btn-alert.btn--pulse { animation: btnPulseAmber 1.6s ease-in-out infinite; }
+
+/* --- Bridge card (feature 002-reactive-voice-bridge) --- */
+.bridge-card {
+  margin: 12px 0 4px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  transition: border-color 0.25s ease;
+}
+.bridge-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bridge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted, #6B8299);
+  flex-shrink: 0;
+}
+.bridge-label {
+  font-size: 15px;
+  color: var(--text, #E8EFF6);
+  font-weight: 500;
+}
+.bridge-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-muted, #6B8299);
+  padding-left: 18px;
+}
+.bridge-card--dialing { border-color: var(--amber-600); }
+.bridge-card--dialing .bridge-dot {
+  background: var(--amber-600);
+  animation: bridgePulse 1.2s ease-in-out infinite;
+}
+.bridge-card--in-call { border-color: var(--teal); }
+.bridge-card--in-call .bridge-dot { background: var(--teal); }
+.bridge-card--in-call .bridge-label { color: var(--teal); }
+.bridge-card--error { border-color: var(--amber-500); }
+.bridge-card--error .bridge-dot { background: var(--amber-500); animation: none; }
+.bridge-card--error .bridge-label { color: var(--amber-500); font-family: 'Eagle Lake', cursive; font-weight: 400; }
+.bridge-card--error .bridge-sub { color: var(--text-soft); }
+.bridge-card--terminal { border-color: var(--amber-500); }
+.bridge-card--terminal .bridge-dot { background: var(--amber-500); animation: none; }
+.bridge-card--terminal .bridge-label { color: var(--amber-500); font-family: 'Eagle Lake', cursive; font-weight: 400; }
+.bridge-card--terminal .bridge-sub { color: var(--text-soft); }
+@keyframes bridgePulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* ============================================================
+   Feature 005 (T012) — pairing flow container. INERT: markup + CSS only.
+   Four sequential states (intro → searching → confirm → ready) + button-test
+   feedback. Bound to live night tokens (day flips automatically); orb glows kept
+   raw rgba per the app's identity-gradient convention. State machine/wiring = T013.
+   ============================================================ */
+.pairing-overlay {
+  position: fixed; inset: 0; z-index: 120;   /* above the settings overlay (z 100) */
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: var(--page);
+}
+.pairing-overlay.hidden { display: none; }   /* guard: beat the base .hidden at equal specificity */
+
+.pairing-panel {
+  position: relative;
+  width: 100%; max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 44px 22px 26px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.45);
+}
+
+.pairing-flow { display: block; }
+.pairing-step { display: none; flex-direction: column; align-items: center; text-align: center; }
+.pairing-step.is-active { display: flex; }
+
+.pairing-eyebrow {
+  align-self: flex-start;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0 0 18px;
+}
+
+.pairing-orb-wrap { display: flex; justify-content: center; margin: 6px 0 20px; }
+.pairing-orb {
+  position: relative; width: 64px; height: 64px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--text); font-size: 28px;
+  background: radial-gradient(circle at 38% 35%, var(--teal-glow) 0%, var(--teal-deep) 45%, var(--teal-600) 100%);
+  box-shadow: 0 0 18px rgba(52,236,217,.35);
+}
+.pairing-orb--amber {
+  background: radial-gradient(circle at 50% 40%, var(--amber-300) 0%, var(--amber-500) 60%, var(--amber-600) 100%);
+  box-shadow: 0 0 18px rgba(245,201,123,.35);
+}
+.pairing-orb--muted {
+  background: radial-gradient(circle at 38% 35%, var(--surface-2) 0%, var(--surface) 60%, var(--bg) 100%);
+  box-shadow: none; color: var(--text-muted);
+}
+.pairing-orb--loud { box-shadow: 0 0 24px rgba(52,236,217,.55); }
+
+.pairing-orb-ring { position: absolute; border-radius: 50%; }
+.pairing-orb-ring--1 { inset: -10px; border: 1.5px solid rgba(52,236,217,.35); }
+.pairing-orb-ring--2 { inset: -20px; border: 1px solid rgba(52,236,217,.18); }
+.pairing-orb-ring--amber { inset: -10px; border: 1.5px solid rgba(245,201,123,.30); }
+
+.pairing-title { font-size: 17px; font-weight: 500; color: var(--text); line-height: 1.35; margin: 0 0 8px; }
+.pairing-body { font-size: 13px; color: var(--text); opacity: .78; line-height: 1.5; margin: 0 0 18px; max-width: 34ch; }
+
+.pairing-cta {
+  margin-top: 2px; width: 100%;
+  background: var(--teal-glow); color: var(--on-accent);
+  font-size: 14px; font-weight: 500; padding: 12px; border: none; border-radius: 10px;
+  cursor: pointer;
+}
+.pairing-dismiss {
+  margin-top: 12px; background: none; border: none;
+  color: var(--text-muted); font-size: 12px; cursor: pointer;
+}
+
+.pairing-status {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 11px; border-radius: 10px; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+}
+.pairing-status i { font-size: 18px; }
+.pairing-status--teal { background: var(--surface-2); background: color-mix(in srgb, var(--teal) 14%, transparent); border-color: var(--teal); }
+.pairing-status--teal i { color: var(--teal-glow); }
+.pairing-status--amber { background: var(--surface-2); background: color-mix(in srgb, var(--amber-500) 14%, transparent); border-color: var(--amber-300); }
+.pairing-status--amber i { color: var(--amber-300); }
+.pairing-status--muted { color: var(--text-muted); }
+.pairing-status--muted i { color: var(--text-muted); }
+
+.pairing-hint { font-size: 11px; color: var(--text-muted); margin: 12px 0 0; line-height: 1.45; }
+.pairing-hint strong { color: var(--text); font-weight: 600; }
+
+/* Feature 005 (T017) — connected-status row (button proof-of-life). Matches the method-card idiom;
+   token-bound (flips with theme); calm — never alarm-red, even at "not connected"/low battery. */
+.button-status { margin-bottom: 8px; }
+.button-status--paired {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--card);
+}
+.button-status--paired .method-eyebrow { margin-bottom: 12px; }
+.bs-conn { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 500; margin-bottom: 8px; }
+.bs-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--text-muted); }
+.bs-conn--on .bs-dot { background: var(--teal-glow); box-shadow: 0 0 8px rgba(52, 236, 217, 0.6); }
+.bs-conn--on .bs-conn-text { color: var(--teal); }
+.bs-conn--off .bs-conn-text { color: var(--text); }
+.bs-hint { font-size: 12px; color: var(--text-muted); margin: -2px 0 10px 18px; line-height: 1.4; }
+.bs-confirmed { font-size: 12.5px; color: var(--text); opacity: 0.8; line-height: 1.4; margin: 0 0 8px; }
+.bs-batt { font-size: 12.5px; color: var(--text-muted); margin: 0 0 4px; }
+.bs-batt--low { color: var(--signal-watch); }
+.bs-actions { display: flex; gap: 8px; margin-top: 12px; }
+.bs-btn {
+  flex: 1; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border-soft); background: var(--surface-2); color: var(--text); cursor: pointer;
+}
+.bs-btn--test {
+  background: var(--surface-2);
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+  border-color: var(--teal); color: var(--teal);
+}
+.bs-btn--test:disabled { opacity: 0.6; }
+.bs-btn--remove { color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Contacts mirror (local-mirror step 2) — full-screen emergency-contacts editor.
+   Theme-aware + text-size-aware via existing tokens (--surface / --teal / --amber-500
+   / --fs-*); no hard-coded colours or sizes. All rules scoped to #screen-contacts.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Full-height, top-aligned scroll region + a sticky bottom nav bar (always reachable,
+   independent of content height / text size). Overrides the base .screen centring. */
+#screen-contacts { justify-content: flex-start; align-items: stretch; padding: 0; }
+.cm-scroll {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  width: 100%; padding: calc(env(safe-area-inset-top) + 18px) 20px 20px;
+}
+.cm-scroll > * { width: 100%; max-width: 420px; margin-left: auto; margin-right: auto; }
+.cm-footer {
+  flex: 0 0 auto; width: 100%;
+  border-top: 1px solid var(--border); background: var(--bg);
+  padding: 10px 20px calc(env(safe-area-inset-bottom) + 10px);
+}
+.cm-footer-back {
+  display: block; width: 100%; max-width: 420px; margin: 0 auto; height: 50px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); color: var(--text);
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600; cursor: pointer;
+}
+.cm-footer-back:active { background: var(--surface-2); }
+.cm-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.cm-back {
+  flex: 0 0 auto; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border); border-radius: 12px; color: var(--text);
+  font-size: 22px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.cm-head-text { flex: 1; min-width: 0; }
+.cm-sub { font-size: var(--fs-hint); color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+
+/* ── Schedule screen (local-mirror step 3, Phase A) — app tokens only (theme + text-size aware) ── */
+#screen-schedule { justify-content: flex-start; align-items: stretch; padding: 0; }
+.sc-scroll {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  width: 100%; padding: calc(env(safe-area-inset-top) + 18px) 20px 20px;
+}
+.sc-scroll > * { width: 100%; max-width: 420px; margin-left: auto; margin-right: auto; }
+.sc-footer {
+  flex: 0 0 auto; width: 100%;
+  border-top: 1px solid var(--border); background: var(--bg);
+  padding: 10px 20px calc(env(safe-area-inset-bottom) + 10px);
+}
+.sc-footer-back {
+  display: block; width: 100%; max-width: 420px; margin: 0 auto; height: 50px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); color: var(--text);
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600; cursor: pointer;
+}
+.sc-footer-back:active { background: var(--surface-2); }
+.sc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.sc-back {
+  flex: 0 0 auto; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border); border-radius: 12px; color: var(--text);
+  font-size: 22px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.sc-head-text { flex: 1; min-width: 0; }
+.sc-sub { font-size: var(--fs-hint); color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+.sc-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; margin-bottom: 12px;
+}
+.sc-card-h { font-size: var(--fs-hint); font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+.sc-days { display: flex; justify-content: space-between; }
+.sc-day {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface-2);
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600; color: var(--text); cursor: pointer;
+}
+.sc-day.is-on { background: var(--teal); border-color: var(--teal); color: var(--on-accent); }
+.sc-day:disabled { opacity: 0.35; cursor: default; }
+.sc-note { font-size: var(--fs-hint); color: var(--text-muted); margin-top: 10px; line-height: 1.4; }
+.sc-lbl { display: block; font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 6px; }
+.sc-time {
+  width: 100%; height: 56px; padding: 0 14px; text-align: center;
+  font: inherit; font-size: 24px; font-weight: 700; color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+}
+.sc-delay { display: flex; gap: 6px; }
+.sc-delay-btn {
+  flex: 1 1 0; min-width: 0; min-height: 48px; padding: 6px 4px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface-2); font: inherit; font-size: var(--fs-row-label); font-weight: 600; color: var(--text); cursor: pointer;
+}
+.sc-delay-btn.is-on { background: var(--teal); border-color: var(--teal); color: var(--on-accent); }
+.sc-save {
+  width: 100%; height: 54px; border: none; border-radius: 100px; margin-top: 6px;
+  background: var(--teal); color: var(--on-accent); font: inherit; font-size: var(--fs-row-label); font-weight: 700; cursor: pointer;
+}
+/* Phase B — mode toggle + Advanced per-day rows/chips */
+.sc-mode { display: flex; background: var(--surface-2); border-radius: 100px; padding: 4px; margin-bottom: 16px; }
+.sc-mode-btn {
+  flex: 1 1 0; min-width: 0; height: 42px; border: none; border-radius: 100px; background: none;
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600; color: var(--text-muted); cursor: pointer;
+}
+.sc-mode-btn.is-on { background: var(--surface); color: var(--teal); }
+.sc-reset {
+  width: 100%; height: 46px; margin-bottom: 14px;
+  border: 1px solid var(--teal); border-radius: 12px; background: none;
+  color: var(--teal); font: inherit; font-size: var(--fs-row-label); font-weight: 600; cursor: pointer;
+}
+.sc-day-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.sc-day-row:last-child { border-bottom: none; }
+.sc-day-name { font-size: var(--fs-row-label); font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.sc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sc-chip { position: relative; display: flex; align-items: center; flex: 1 1 100px; min-width: 96px; }
+.sc-chip-inp {
+  height: 44px; width: 100%; min-width: 0; padding: 0 12px; text-align: center;
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600;
+  border: 1px solid var(--teal); border-radius: 100px; background: var(--surface-2); color: var(--text);
+}
+.sc-chip-x {
+  position: absolute; top: -7px; right: -5px; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
+  font-size: 13px; line-height: 1; cursor: pointer;
+}
+.sc-add-time {
+  flex: 0 0 auto; height: 44px; padding: 0 16px; border-radius: 100px;
+  border: 1.5px dashed var(--teal); background: none;
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600; color: var(--teal); cursor: pointer;
+}
+/* Save-prompt pulse — an edit to loaded state flashes Save to encourage saving (mirrors the website .ready). */
+@keyframes sc-save-pulse {
+  0%   { transform: scale(1);     box-shadow: 0 0 0 0 rgba(37,201,186,.7); }
+  50%  { transform: scale(1.035); box-shadow: 0 0 0 10px rgba(37,201,186,0); }
+  100% { transform: scale(1);     box-shadow: 0 0 0 0 rgba(37,201,186,0); }
+}
+.sc-save.is-dirty { animation: sc-save-pulse 1s ease-in-out infinite; }
+
+/* ── Account tab cards (settings completion, mirror steps 4+6) — app tokens (theme + text-size aware) ── */
+.sa-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+.sa-card-h { font-size: var(--fs-hint); font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+.sa-lbl { display: block; font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 0 6px; }
+.sa-lbl:first-of-type { margin-top: 0; }
+.sa-inp, .sa-drp {
+  width: 100%; height: 50px; padding: 0 14px; font: inherit; font-size: var(--fs-row-label);
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text);
+}
+.sa-inp[readonly] { background: var(--surface); color: var(--text-muted); }
+.sa-ph-row { display: flex; gap: 8px; }
+.sa-num { flex: 1 1 auto; min-width: 0; }
+.sa-seg { display: flex; gap: 6px; }
+.sa-seg-btn {
+  flex: 1 1 0; min-width: 0; min-height: 58px; padding: 8px 4px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface-2); font: inherit; font-size: var(--fs-hint); font-weight: 600; color: var(--text); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.sa-seg-btn i { font-size: 21px; }
+.sa-seg-btn.is-on { background: var(--teal); border-color: var(--teal); color: var(--on-accent); }
+.sa-plan { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0; }
+/* Plan orb — ported from the iona.today homepage price cards, in Oran amber (identity, same both
+   themes): an amber orb centre + N pinging TEAL arcs (arcs = tier: Protector 2, Guardian 3, Guardian
+   Angel 4). Arc count set by _saRender per plan. */
+.sa-plan-orb {
+  position: relative; flex: none; width: 34px; height: 34px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, var(--amber-300) 0%, var(--amber-500) 62%, var(--amber-600) 100%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--amber-300) 50%, transparent), 0 0 60px color-mix(in srgb, var(--amber-300) 28%, transparent);
+  animation: iona-breathe var(--dur-breath, 4.2s) var(--ease-calm, ease-in-out) infinite;
+  margin: 30px 0 34px;   /* headroom so the outermost arc (~2.75×) isn't clipped */
+}
+.sa-plan-orb i {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  border-radius: 50%; border: 2px solid transparent; border-right-color: var(--teal);
+  pointer-events: none; animation: sa-pingarc 4200ms var(--ease-calm, ease-in-out) infinite;
+}
+.sa-plan-orb i:nth-child(1) { width: 155%; height: 155%; }
+.sa-plan-orb i:nth-child(2) { width: 195%; height: 195%; animation-delay: 0.18s; }
+.sa-plan-orb i:nth-child(3) { width: 235%; height: 235%; animation-delay: 0.36s; }
+.sa-plan-orb i:nth-child(4) { width: 275%; height: 275%; animation-delay: 0.54s; }
+@keyframes sa-pingarc { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.9; } }
+/* Beacon (reactive-only) — no arcs; the amber orb emits rings that pulse outward and fade (the
+   homepage footer "ping" style, in amber). Added/removed per plan by _saRender via .sa-plan-orb--beacon. */
+.sa-plan-orb--beacon::before, .sa-plan-orb--beacon::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid var(--amber-500); pointer-events: none;
+  animation: sa-ping 2800ms var(--ease-calm, ease-in-out) infinite;
+}
+.sa-plan-orb--beacon::after { animation-delay: 1400ms; }
+@keyframes sa-ping { 0% { transform: scale(1); opacity: 0.5; } 80%, 100% { transform: scale(2.2); opacity: 0; } }
+.sa-plan-text { min-width: 0; text-align: center; }
+.sa-plan-name { font-size: var(--fs-row-label); font-weight: 700; color: var(--text); }
+.sa-plan-sub { font-size: var(--fs-hint); color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+.sa-note { font-size: var(--fs-hint); color: var(--text-muted); margin-top: 8px; line-height: 1.4; }
+.sa-card > .sa-note:first-child { margin-top: 0; }   /* note-only card (e.g. plan/billing footer) — even 16px top & bottom */
+.sa-save {
+  width: 100%; height: 52px; border: none; border-radius: 100px; margin: 4px 0 16px;
+  background: var(--teal); color: var(--on-accent); font: inherit; font-size: var(--fs-row-label); font-weight: 700; cursor: pointer;
+}
+.sa-save.is-dirty { animation: sc-save-pulse 1s ease-in-out infinite; }
+
+/* Account holder — inline accordion (Account tab): collapsed renders as a nav row (.settings-card);
+   tap expands the .sa-* body in place, no routing. ONLY this card. Mirrors the .cm-* chevron-rotate. */
+.sa-acc-body { display: none; }
+.sa-accordion.is-open .sa-acc-body { display: block; }
+.sa-acc-chev { transition: transform 0.18s; }
+.sa-accordion.is-open .sa-acc-chev { transform: rotate(90deg); }
+.sa-accordion.is-open .sa-acc-head { margin-bottom: 2px; }
+
+/* ── Service history / Logs screen (mirror step 5) — read-only ── */
+#screen-logs { justify-content: flex-start; align-items: stretch; padding: 0; }
+.lg-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.lg-head-text { flex: 1; min-width: 0; }
+.lg-asof { font-size: var(--fs-hint); color: var(--text-muted); margin-top: 3px; }
+.lg-refresh {
+  flex: 0 0 auto; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border); border-radius: 12px; color: var(--text);
+  font-size: 20px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.lg-refresh.is-spinning i { animation: lg-spin 0.8s linear infinite; }
+@keyframes lg-spin { to { transform: rotate(360deg); } }
+.lg-day { font-size: var(--fs-hint); font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 6px; }
+.lg-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.lg-row:last-child { border-bottom: none; }
+.lg-time { flex: 0 0 auto; width: 52px; font-size: var(--fs-hint); color: var(--text-muted); padding-top: 2px; }
+.lg-sentence { flex: 1; min-width: 0; font-size: var(--fs-row-label); color: var(--text); line-height: 1.5; }
+.lg-empty { font-size: var(--fs-row-label); color: var(--text-muted); text-align: center; padding: 28px 8px; line-height: 1.5; }
+
+.cm-card {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; margin-bottom: 12px; overflow: hidden;
+}
+.cm-top { display: flex; align-items: center; gap: 12px; padding: 16px; cursor: pointer; }
+.cm-num {
+  width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%;
+  background: color-mix(in srgb, var(--teal) 12%, transparent); border: 1px solid var(--teal);
+  color: var(--teal); font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.cm-meta { flex: 1; min-width: 0; }
+.cm-hdr { font-size: var(--fs-hint); font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.06em; }
+.cm-summary { font-size: var(--fs-row-label); color: var(--text-soft); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-reorder { display: flex; flex-direction: column; gap: 3px; }
+.cm-reorder button {
+  background: none; border: 1px solid var(--border-soft); border-radius: 8px;
+  width: 34px; height: 24px; font-size: 11px; color: var(--text-soft); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+}
+.cm-reorder button:disabled { opacity: 0.3; }
+.cm-chev { color: var(--text-muted); font-size: 16px; transition: transform 0.18s; }
+.cm-card.is-open .cm-chev { transform: rotate(90deg); }
+
+.cm-form { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
+.cm-card.is-open .cm-form { display: block; }
+.cm-fld-lbl { display: block; font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 6px; }
+.cm-form input[type="text"], .cm-prfx-wrap {
+  width: 100%; height: 50px; padding: 0 14px; font: inherit; font-size: var(--fs-row-label);
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text);
+}
+.cm-row-2 { display: flex; gap: 8px; }
+.cm-row-2 > div { flex: 1; min-width: 0; }
+/* Large/Larger text: stack the first/last name fields full-width so the labels don't wrap and
+   displace the row (US6 body[data-text-size]). */
+body[data-text-size="large"] .cm-row-2,
+body[data-text-size="xl"]    .cm-row-2 { flex-direction: column; gap: 0; }
+.cm-ph-row { display: flex; gap: 8px; }
+/* Option A — compact prefix chip: shows only the selected flag; the real <select> is an invisible
+   tap layer over it, so the full "flag +code · name" list still opens on tap. Content-sized (no fixed
+   132px box) so the number field gets the width back and the row scales cleanly with text-size. */
+.cm-prfx-wrap {
+  width: auto; flex: 0 0 auto; min-width: 56px; padding: 0 10px;
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.cm-prfx-flag { font-size: 1.3em; line-height: 1; pointer-events: none; }
+.cm-prfx-caret { font-size: 0.7em; color: var(--text-muted); pointer-events: none; }
+.cm-prfx {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+  border: 0; background: transparent; color: transparent; opacity: 0;
+  -webkit-appearance: none; appearance: none; font-size: var(--fs-row-label);
+}
+/* Options inherit the select's transparent colour → invisible in the open dropdown on some
+   platforms; force a readable colour (Android's native dropdown is immune, but keep parity). */
+.cm-prfx option { color: var(--text); background: var(--surface); }
+.cm-num-inp { flex: 1; min-width: 0; }
+.cm-actions { margin-top: 18px; }
+.cm-save {
+  width: 100%; height: 52px; border: none; border-radius: 100px;
+  background: var(--teal); color: var(--on-accent); font: inherit; font-size: var(--fs-row-label); font-weight: 700; cursor: pointer;
+}
+.cm-save:disabled { opacity: 0.6; }
+.cm-remove {
+  display: block; margin: 12px auto 0; background: none; border: none; color: var(--text-muted);
+  font: inherit; font-size: var(--fs-hint); text-decoration: underline; cursor: pointer; padding: 8px;
+}
+.cm-confirm { display: none; margin-top: 12px; padding: 14px; border-radius: 12px; background: color-mix(in srgb, var(--amber-500) 14%, transparent); border: 1px solid var(--amber-500); font-size: var(--fs-hint); color: var(--text); line-height: 1.4; }
+.cm-confirm.show { display: block; }
+.cm-confirm-row { display: flex; gap: 10px; margin-top: 10px; }
+.cm-confirm-row button { flex: 1; height: 44px; border-radius: 100px; font: inherit; font-size: var(--fs-hint); font-weight: 600; cursor: pointer; }
+.cm-confirm-keep { background: none; border: 1px solid var(--border); color: var(--text); }
+.cm-confirm-remove { background: var(--amber-500); border: none; color: var(--on-accent); }
+
+.cm-add-btn {
+  width: 100%; min-height: 54px; margin-top: 4px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  border: 1.5px dashed var(--teal); border-radius: 14px; background: none;
+  color: var(--teal); font: inherit; font-size: var(--fs-row-label); font-weight: 600; cursor: pointer;
+}
+.cm-add-btn:disabled { opacity: 0.4; cursor: default; }
+.cm-cap-note { font-size: var(--fs-hint); color: var(--text-muted); text-align: center; margin-top: 8px; }
+.cm-pick {
+  width: 100%; min-height: 48px; margin-top: 14px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  border: 1px solid var(--teal); border-radius: 12px;
+  background: color-mix(in srgb, var(--teal) 12%, transparent); color: var(--teal);
+  font: inherit; font-size: var(--fs-row-label); font-weight: 600; cursor: pointer;
+}
+.cm-pick:active { background: color-mix(in srgb, var(--teal) 20%, transparent); }

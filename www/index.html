@@ -68,10 +68,26 @@
       <span class="today-date" id="today-date"></span>
     </div>
 
+    <!-- US1 — persistent informational paused banner (indicator only). Hidden unless
+         service_status == Paused. Taps through to Settings; does NOT resume directly —
+         pause/resume as an action is built in the settings overhaul (US2). -->
+    <button id="today-paused-banner" class="today-paused-banner hidden">Scheduled service paused</button>
+
     <div class="orb-backdrop-system" id="orb-backdrop-system">
       <div class="orb-backdrop-core"></div>
+      <div class="orb-voice hidden" id="orb-voice">
+        <span class="orb-bar orb-bar--amber"></span>
+        <span class="orb-bar orb-bar--teal"></span>
+        <span class="orb-bar orb-bar--amber"></span>
+        <span class="orb-bar orb-bar--teal"></span>
+        <span class="orb-bar orb-bar--amber"></span>
+        <span class="orb-bar orb-bar--teal"></span>
+        <span class="orb-bar orb-bar--amber"></span>
+      </div>
       <div class="orb-ping orb-ping--1"></div>
       <div class="orb-ping orb-ping--2"></div>
+      <div class="orb-ping orb-ping--amber orb-ping--amber-1"></div>
+      <div class="orb-ping orb-ping--amber orb-ping--amber-2"></div>
     </div>
 
     <div class="today-messages" id="today-messages">
@@ -83,25 +99,40 @@
         <div class="alarm-countdown-sub">Tap cancel to stop</div>
       </div>
       <div class="alarm-escalation-card hidden" id="alarm-escalation-card">
-        <div class="alarm-esc-label">Calling your contacts</div>
+        <div class="alarm-esc-label" id="alarm-esc-label">Calling your contacts</div>
+        <div class="alarm-esc-sub" id="alarm-esc-sub" hidden></div>
         <div id="alarm-contacts-list"></div>
       </div>
       <div class="alarm-terminal-card hidden" id="alarm-terminal-card">
         <div class="alarm-terminal-icon">
           <i class="ti ti-check" aria-hidden="true"></i>
         </div>
-        <div class="alarm-terminal-title">I've tried your contacts.</div>
+        <div class="alarm-terminal-title" id="alarm-terminal-title">I've tried your contacts.</div>
         <!-- v2: copy becomes dynamic when econtact acknowledgement is built — FCM escalation_complete payload will include outcome status -->
-        <div class="alarm-terminal-sub">If someone is able to help, they are on their way.</div>
+        <div class="alarm-terminal-sub" id="alarm-terminal-sub">If someone is able to help, they are on their way.</div>
+      </div>
+      <div class="bridge-card hidden" id="bridge-card">
+        <div class="bridge-card-header">
+          <span class="bridge-dot" id="bridge-dot"></span>
+          <span class="bridge-label" id="bridge-label"></span>
+        </div>
+        <div class="bridge-sub" id="bridge-sub"></div>
+      </div>
+      <div class="dd-prompt hidden" id="device-dial-prompt">
+        <div class="dd-prompt-q">Did you reach someone?</div>
+        <div class="dd-prompt-btns">
+          <button id="dd-stop" class="dd-btn dd-btn--stop">YES — STOP</button>
+          <button id="dd-next" class="dd-btn dd-btn--next">KEEP TRYING</button>
+        </div>
+        <div class="dd-prompt-count" id="dd-prompt-count"></div>
       </div>
     </div>
 
     <p id="msg-today-warning" class="warning-msg hidden"></p>
 
-    <button id="btn-alarm-done" class="btn-alarm-done hidden">↩ Return to Iona</button>
-
     <div class="today-actions">
-      <button id="btn-okay" class="btn-okay btn--dim">OKAY<br>THANKS</button>
+      <button id="btn-okay" class="btn-okay btn--dim okay-pending">OKAY<br>THANKS</button>
+      <button id="btn-alarm-done" class="btn-alarm-done hidden">↩ RETURN<br>TO IONA</button>
       <button id="btn-alert" class="btn-alert">I NEED<br>HELP</button>
       <button id="btn-cancel" class="btn-cancel hidden">CANCEL</button>
     </div>
@@ -124,20 +155,255 @@
   <!-- Settings overlay (slides up over Today screen — not a route) -->
   <div id="settings-overlay" class="settings-overlay hidden">
     <div class="settings-panel">
+      <div class="settings-grabber" aria-hidden="true"></div>
       <button id="btn-settings-close" class="settings-close">✕</button>
-      <h2 class="settings-title">Service settings</h2>
-      <div class="settings-row">
-        <span class="settings-row-label">Status</span>
-        <span id="settings-status-badge" class="status-badge status-badge--active">Active</span>
+
+      <!-- US2 — tab bar (Service · Appearance · Account); Service active by default -->
+      <div class="settings-tabs" role="tablist">
+        <button class="settings-tab is-active" data-tab="service" role="tab">Service</button>
+        <button class="settings-tab" data-tab="appearance" role="tab">Appearance</button>
+        <button class="settings-tab" data-tab="account" role="tab">Account</button>
       </div>
-      <button id="btn-pause-restart" class="btn-pause-restart">Pause service</button>
-      <p class="settings-section-label">Manage</p>
-      <button id="btn-schedule" class="btn-text">My schedule</button>
-      <button id="btn-service" class="btn-text">My service</button>
-      <button id="btn-contacts" class="btn-text">My contacts</button>
-      <button id="btn-account" class="btn-text">My account</button>
-      <button id="btn-logs" class="btn-text">Activity log</button>
-      <button id="btn-logout" class="btn-text">Sign out</button>
+
+      <!-- Scrollable body — panes scroll under the pinned header (grabber + × + title + tabs). -->
+      <div class="settings-body">
+
+      <!-- Service pane -->
+      <div class="settings-pane is-active" data-pane="service">
+        <!-- Combined Service card: the state line replaces the old standalone status-pill row.
+             #settings-status-badge + #btn-pause-restart keep their IDs/handlers — restyle only. -->
+        <div class="settings-card service-card" id="service-card">
+          <span class="settings-card-tile"><i class="ti ti-broadcast" aria-hidden="true"></i></span>
+          <span class="service-card-text">
+            <span class="settings-card-label">Service</span>
+            <span id="settings-status-badge" class="status-badge status-badge--active">Active</span>
+          </span>
+          <button id="btn-pause-restart" class="btn-pause-restart">Pause service</button>
+        </div>
+        <div class="orb-card">
+          <div class="orb-card-visual" aria-hidden="true"></div>
+          <div class="settings-row orb-card-row">
+            <span class="settings-row-label">Orb help button</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-orb-btn">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Feature 004 — reactive-method picker: how help reaches you when you press for help.
+             Rendered by _renderReactiveMethodPicker() from /pwa-status (hasHandsFree + escalationMode);
+             the choice persists via POST /pwa-escalation-mode. Row text is menu text → US6-scaled. -->
+        <div class="method-card" id="reactive-method-card" hidden>
+          <p class="method-eyebrow">Connecting with your contacts</p>
+
+          <div class="method-row method-row--selected" id="method-row-escalation" role="radio" aria-checked="true" tabindex="0" aria-label="Oran's Signal">
+            <span class="method-tile method-tile--amber"><i class="ti ti-users" aria-hidden="true"></i></span>
+            <span class="method-body">
+              <span class="method-title-line"><span class="method-title"><span class="method-name-oran">Oran's</span> Signal</span></span>
+            </span>
+            <span class="method-control">
+              <span class="method-radio method-radio--on" id="method-esc-radio" aria-hidden="true"></span>
+            </span>
+          </div>
+
+          <div class="method-row" id="method-row-handsfree" role="radio" aria-checked="false" tabindex="0" aria-label="Speakerphone">
+            <span class="method-tile method-tile--amber"><i class="ti ti-microphone" aria-hidden="true"></i></span>
+            <span class="method-body">
+              <span class="method-title-line"><span class="method-title">Speakerphone</span></span>
+              <span class="method-subtitle">Connect directly with your contacts by speakerphone</span>
+            </span>
+            <span class="method-control">
+              <span class="method-radio" id="method-hf-radio" aria-hidden="true"></span>
+              <span class="method-price" id="method-hf-price">Add £6</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Feature 005 (T017) — connected-status row: the help button's proof-of-life surface.
+             Rendered by _renderButtonStatus() from live FlicPlugin signals (getPairingState /
+             connectionChanged / readBattery) + a local "last confirmed working" timestamp.
+             Unpaired → Pair CTA (opens the T013 flow); paired → live status + Test/Remove. -->
+        <div id="button-status" class="button-status"></div>
+
+        <!-- Feature 005 (T019) — summon-gesture chooser: how the member presses the button for help.
+             Default single-press (telecare-familiar); hold is the accident-resistant opt-in. Reflects +
+             writes FlicPlugin.setSummonGesture (persisted natively). Shown only when a button is paired.
+             Reuses the feature-004 method-* picker styling (US6/US7-scoped) exactly. -->
+        <div class="method-card" id="gesture-card" hidden>
+          <p class="method-eyebrow">Pressing your button</p>
+
+          <div class="method-row method-row--selected" id="gesture-row-single" role="radio" aria-checked="true" tabindex="0" aria-label="One press for help">
+            <span class="method-tile method-tile--amber"><i class="ti ti-hand-finger" aria-hidden="true"></i></span>
+            <span class="method-body">
+              <span class="method-title-line"><span class="method-title">One press for help</span></span>
+              <span class="method-subtitle">The familiar way — a single press reaches your people.</span>
+            </span>
+            <span class="method-control">
+              <span class="method-radio method-radio--on" id="gesture-single-radio" aria-hidden="true"></span>
+            </span>
+          </div>
+
+          <div class="method-row" id="gesture-row-hold" role="radio" aria-checked="false" tabindex="0" aria-label="Press and hold">
+            <span class="method-tile method-tile--amber"><i class="ti ti-hand-stop" aria-hidden="true"></i></span>
+            <span class="method-body">
+              <span class="method-title-line"><span class="method-title">Press and hold</span></span>
+              <span class="method-subtitle">Press and hold for a moment — a button that can't be pressed by accident.</span>
+            </span>
+            <span class="method-control">
+              <span class="method-radio" id="gesture-hold-radio" aria-hidden="true"></span>
+            </span>
+          </div>
+
+          <p class="method-foot">You can test your button any time with Test service, above.</p>
+        </div>
+      </div>
+
+      <!-- Appearance pane — US7 (theme) · US6 (text size) · US8 (message readability). -->
+      <div class="settings-pane" data-pane="appearance">
+        <!-- US7 — theme (Night / Day). Switches the colour layer live; default Night. -->
+        <p class="settings-section-label">Theme</p>
+        <div class="settings-card">
+          <span class="settings-card-tile"><i class="ti ti-moon-stars" aria-hidden="true"></i></span>
+          <div class="text-size-seg" role="group" aria-label="Theme">
+            <button type="button" class="text-size-opt theme-opt" data-theme="night">Night</button>
+            <button type="button" class="text-size-opt theme-opt" data-theme="day">Day</button>
+          </div>
+        </div>
+
+        <!-- US8 — message readability (Handwritten ↔ Easy-read). Font only; each option previews the live message. -->
+        <p class="settings-section-label">Message text</p>
+        <button type="button" class="msg-font-option" data-font-set="app" id="font-opt-app">
+          <span class="msg-font-option-name">Handwritten</span>
+          <span class="msg-font-preview msg-preview-iona">Good morning, how are you?</span>
+          <i class="ti ti-check msg-font-check" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="msg-font-option" data-font-set="easyread" id="font-opt-easyread">
+          <span class="msg-font-option-name">Easy-read</span>
+          <span class="msg-font-preview msg-preview-easyread">Good morning, how are you?</span>
+          <i class="ti ti-check msg-font-check" aria-hidden="true"></i>
+        </button>
+
+        <!-- US6 — text size (Standard / Large / Larger). Scales reading text as a group; the Message-text cards above preview the live size. -->
+        <p class="settings-section-label">Text size</p>
+        <div class="settings-card text-size-card">
+          <span class="settings-card-tile"><i class="ti ti-text-size" aria-hidden="true"></i></span>
+          <div class="text-size-seg" role="group" aria-label="Text size">
+            <button type="button" class="text-size-opt" data-text-size="base">Standard</button>
+            <button type="button" class="text-size-opt" data-text-size="large">Large</button>
+            <button type="button" class="text-size-opt" data-text-size="xl">Larger</button>
+          </div>
+        </div>
+
+        <!-- Sound & touch — interface feedback on taps. Three voices (Teal / Orb / Signal),
+             synthesised via the AudioContext app.js already owns. Each option PREVIEWS
+             ITSELF on tap, exactly as the Message-text cards preview their own font —
+             the member discovers the sound by choosing it, never by being ambushed.
+             Pref `feedback`: sound (default) | vibrate | off.
+             The alarm-path controls are silent regardless — see feedback.js SILENT_IDS. -->
+        <p class="settings-section-label">Sound &amp; touch</p>
+        <div class="settings-card">
+          <span class="settings-card-tile"><i class="ti ti-volume" aria-hidden="true"></i></span>
+          <div class="text-size-seg" role="group" aria-label="Sound and touch">
+            <button type="button" class="text-size-opt fb-opt" data-feedback="sound">Sound</button>
+            <button type="button" class="text-size-opt fb-opt" data-feedback="vibrate">Vibrate</button>
+            <button type="button" class="text-size-opt fb-opt" data-feedback="off">Off</button>
+          </div>
+        </div>
+        <p class="sa-note" style="margin-top:8px">Iona's help sounds are always on, whatever you choose here.</p>
+      </div>
+
+      <!-- Account pane -->
+      <div class="settings-pane" data-pane="account">
+        <div id="account-main">
+          <!-- Settings completion (mirror steps 4+6) — native Account cards. Populated by _saRender() on Account-tab open. -->
+          <div class="sa-card">
+            <div class="sa-card-h">Your plan</div>
+            <div class="sa-plan">
+              <span class="sa-plan-orb" id="sa-plan-badge" role="img" aria-label="Iona"></span>
+              <div class="sa-plan-text">
+                <div class="sa-plan-name" id="sa-plan-name">—</div>
+                <div class="sa-plan-sub" id="sa-plan-sub"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Account holder — inline accordion: collapsed renders as a nav row (settings-card,
+               indistinguishable from Service delivery / Contacts / …); tap expands the existing .sa-*
+               fields in place (no routing). ONLY this Account card behaves this way. Save unchanged. -->
+          <div class="sa-accordion" id="sa-holder-acc">
+            <button type="button" class="settings-card account-card sa-acc-head" id="btn-account-holder" aria-expanded="false" aria-controls="sa-holder-body">
+              <span class="settings-card-tile"><i class="ti ti-user" aria-hidden="true"></i></span>
+              <span class="settings-card-label">Account holder</span>
+              <i class="ti ti-chevron-right settings-card-chevron sa-acc-chev" aria-hidden="true"></i>
+            </button>
+            <div class="sa-card sa-acc-body" id="sa-holder-body">
+              <label class="sa-lbl">First name</label>
+              <input type="text" class="sa-inp" id="sa-first" placeholder="First name">
+              <label class="sa-lbl">Last name</label>
+              <input type="text" class="sa-inp" id="sa-last" placeholder="Last name">
+              <label class="sa-lbl">Email</label>
+              <input type="text" class="sa-inp" id="sa-email" readonly>
+              <p class="sa-note">Your email is how you sign in — change it on the website.</p>
+            </div>
+          </div>
+          <!-- "Who Iona is there for" — matching accordion, shown only for account-type='other'
+               (the wrapper's display is toggled in _saRender). Same nav-row pattern as Account holder. -->
+          <div class="sa-accordion" id="sa-svcuser-acc" style="display:none;">
+            <button type="button" class="settings-card account-card sa-acc-head" id="btn-svcuser" aria-expanded="false" aria-controls="sa-svcuser-body">
+              <span class="settings-card-tile"><i class="ti ti-user-heart" aria-hidden="true"></i></span>
+              <span class="settings-card-label">Who Iona is there for</span>
+              <i class="ti ti-chevron-right settings-card-chevron sa-acc-chev" aria-hidden="true"></i>
+            </button>
+            <div class="sa-card sa-acc-body" id="sa-svcuser-body">
+              <label class="sa-lbl">First name</label>
+              <input type="text" class="sa-inp" id="sa-su-first" placeholder="First name">
+              <label class="sa-lbl">Last name</label>
+              <input type="text" class="sa-inp" id="sa-su-last" placeholder="Last name">
+            </div>
+          </div>
+          <button class="sa-save" id="sa-save">Save account details</button>
+
+          <button id="btn-service" class="settings-card account-card">
+            <span class="settings-card-tile"><i class="ti ti-adjustments-alt" aria-hidden="true"></i></span>
+            <span class="settings-card-label">Service delivery</span>
+            <i class="ti ti-chevron-right settings-card-chevron" aria-hidden="true"></i>
+          </button>
+          <button id="btn-schedule" class="settings-card account-card">
+            <span class="settings-card-tile"><i class="ti ti-calendar-event" aria-hidden="true"></i></span>
+            <span class="settings-card-label">Schedule</span>
+            <i class="ti ti-chevron-right settings-card-chevron" aria-hidden="true"></i>
+          </button>
+          <button id="btn-contacts" class="settings-card account-card">
+            <span class="settings-card-tile"><i class="ti ti-users" aria-hidden="true"></i></span>
+            <span class="settings-card-label">Contacts</span>
+            <i class="ti ti-chevron-right settings-card-chevron" aria-hidden="true"></i>
+          </button>
+          <button id="btn-logs" class="settings-card account-card">
+            <span class="settings-card-tile"><i class="ti ti-history" aria-hidden="true"></i></span>
+            <span class="settings-card-label">Activity log</span>
+            <i class="ti ti-chevron-right settings-card-chevron" aria-hidden="true"></i>
+          </button>
+          <button id="btn-logout" class="settings-card account-card account-card--signout">
+            <span class="settings-card-tile settings-card-tile--amber"><i class="ti ti-logout" aria-hidden="true"></i></span>
+            <span class="settings-card-label">Sign out</span>
+          </button>
+          <!-- Plan/billing note — moved out of the Your plan card into its own footer card. -->
+          <div class="sa-card">
+            <p class="sa-note">To change your plan, manage billing, or cancel your account, sign in at iona.today.</p>
+          </div>
+        </div>
+        <!-- US5/T021 — in-sheet sign-out confirm (hidden until Sign out is tapped).
+             Cancel is the prominent default; "Sign out" is the quieter deliberate action. -->
+        <div id="logout-confirm" class="logout-confirm">
+          <div class="logout-confirm-title">Sign out?</div>
+          <div class="logout-confirm-sub">You can sign back in any time.</div>
+          <div class="logout-confirm-btns">
+            <button id="btn-logout-cancel" class="logout-confirm-cancel">Cancel</button>
+            <button id="btn-logout-confirm" class="logout-confirm-go">Sign out</button>
+          </div>
+        </div>
+      </div>
+      </div><!-- /.settings-body -->
     </div>
   </div>
 
@@ -159,6 +425,275 @@
     </div>
   </div>
 
+  <!-- Contacts mirror (local-mirror step 2) — full-screen emergency-contacts editor.
+       Opened from Settings ▸ Account ▸ Contacts (repurposed Feature-003 deep-link row).
+       Cards are JS-rendered by renderContactsScreen(); this is the shell only. -->
+  <div id="screen-contacts" class="screen hidden">
+    <div class="cm-scroll">
+      <div class="cm-head">
+        <button id="btn-contacts-back" class="cm-back" aria-label="Back">
+          <i class="ti ti-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="cm-head-text">
+          <h2 class="screen-title">Your contacts</h2>
+          <p class="cm-sub">Up to 6 contacts, in the order they'll be called.</p>
+        </div>
+      </div>
+
+      <!-- Rounds (sweep-count) — reactive escalation rounds. Memberstack-only ('sweep-count'); NEVER Airtable. No plan gating. Settled placement: the Contacts screen, above the contacts list (Service tab kept lean). Write-on-select via _cmWrite. Copy shared verbatim with the website + onboarding + marketing site. FUTURE (Ian): copy/styling tweak to reduce the cramped look. -->
+      <div class="rounds-sec" id="rounds-sec-contacts">
+        <div class="rnd-head">
+          <span class="rnd-head-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <h3 class="rnd-title">How many times we try your contacts</h3>
+        </div>
+        <p class="rnd-sub">If someone doesn't answer, we move to the next person right away. This sets how many full rounds we make.</p>
+        <div class="rnd-seg">
+          <button type="button" data-n="1">1 round</button>
+          <button type="button" data-n="2">2 rounds</button>
+          <button type="button" data-n="3">3 rounds</button>
+        </div>
+        <div class="rnd-preview-box">
+          <p class="rnd-preview-lbl">What this means</p>
+          <div class="rnd-preview"></div>
+          <p class="rnd-note"></p>
+        </div>
+      </div>
+
+      <div id="cm-list"></div>
+      <button id="cm-add-btn" class="cm-add-btn">+ Add contact</button>
+      <p id="cm-cap-note" class="cm-cap-note"></p>
+    </div>
+    <div class="cm-footer">
+      <button id="btn-contacts-done" class="cm-footer-back">Back to settings</button>
+    </div>
+  </div>
+
+  <!-- Local-mirror step 3 (Phase A — Standard) — full-screen Schedule editor, entered from Settings ▸ Schedule. -->
+  <div id="screen-schedule" class="screen hidden">
+    <div class="sc-scroll">
+      <div class="sc-head">
+        <button id="btn-schedule-back" class="sc-back" aria-label="Back">
+          <i class="ti ti-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="sc-head-text">
+          <h2 class="screen-title">Schedule</h2>
+          <p class="sc-sub">The days and times Iona gets in touch.</p>
+        </div>
+      </div>
+      <div class="sc-mode">
+        <button type="button" id="sc-mode-std" class="sc-mode-btn is-on">Standard</button>
+        <button type="button" id="sc-mode-adv" class="sc-mode-btn">Advanced</button>
+      </div>
+      <div class="sc-card">
+        <div class="sc-card-h">Days</div>
+        <div class="sc-days" id="sc-days"></div>
+        <p class="sc-note" id="sc-plan-note"></p>
+      </div>
+      <div id="sc-std-pane">
+        <div class="sc-card">
+          <div class="sc-card-h">Time &amp; delay</div>
+          <label class="sc-lbl">Time</label>
+          <input type="time" class="sc-time" id="sc-time" value="09:00">
+          <label class="sc-lbl" style="margin-top:14px">Delay</label>
+          <div class="sc-delay" id="sc-delay"></div>
+          <p class="sc-note">The delay is how long Iona waits for a reply before the next step.</p>
+        </div>
+      </div>
+      <div id="sc-adv-pane" style="display:none">
+        <div class="sc-card">
+          <div class="sc-card-h">Times for each day</div>
+          <button type="button" class="sc-reset" id="sc-reset">Reset to plan defaults</button>
+          <div id="sc-day-rows"></div>
+        </div>
+        <div class="sc-card">
+          <div class="sc-card-h">Delay</div>
+          <div class="sc-delay" id="sc-delay-adv"></div>
+          <p class="sc-note">The delay is how long Iona waits for a reply before the next step.</p>
+        </div>
+      </div>
+      <button class="sc-save" id="sc-save">Save schedule</button>
+    </div>
+    <div class="sc-footer">
+      <button id="btn-schedule-done" class="sc-footer-back">Back to settings</button>
+    </div>
+  </div>
+
+  <!-- Local-mirror steps 4/6 — full-screen Service delivery editor, entered from Settings ▸ Service delivery.
+       Split out of the merged Account tab so the deep-link rows sit near the top (short scroll). -->
+  <div id="screen-service-delivery" class="screen hidden">
+    <div class="sc-scroll">
+      <div class="sc-head">
+        <button id="btn-service-back" class="sc-back" aria-label="Back">
+          <i class="ti ti-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="sc-head-text">
+          <h2 class="screen-title">Service delivery</h2>
+          <p class="sc-sub">How and where Iona reaches you.</p>
+        </div>
+      </div>
+      <div class="sa-card">
+        <label class="sa-lbl">Number Iona reaches you on</label>
+        <div class="sa-ph-row">
+          <div class="cm-prfx-wrap">
+            <span class="cm-prfx-flag" aria-hidden="true"></span>
+            <span class="cm-prfx-caret" aria-hidden="true">▾</span>
+            <select class="cm-prfx" id="sa-prfx" aria-label="Country dialling code"></select>
+          </div>
+          <input type="text" class="sa-inp sa-num" id="sa-num" inputmode="tel" placeholder="07123456789">
+        </div>
+        <label class="sa-lbl">How Iona gets in touch</label>
+        <div class="sa-seg" id="sa-channel"></div>
+        <label class="sa-lbl">Time zone</label>
+        <select class="sa-drp" id="sa-tz"></select>
+        <p class="sa-note">Times you set follow this time zone.</p>
+        <p class="sa-note" id="sa-tz-clock"></p>
+      </div>
+      <button class="sa-save" id="sv-save">Save service delivery</button>
+    </div>
+    <div class="sc-footer">
+      <button id="btn-service-done" class="sc-footer-back">Back to settings</button>
+    </div>
+  </div>
+
+  <!-- Local-mirror step 5 (FINAL) — full-screen read-only Service history (Logs). -->
+  <div id="screen-logs" class="screen hidden">
+    <div class="sc-scroll">
+      <div class="lg-head">
+        <button id="btn-logs-back" class="sc-back" aria-label="Back">
+          <i class="ti ti-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="lg-head-text">
+          <h2 class="screen-title">Service history</h2>
+          <p class="lg-asof" id="lg-asof"></p>
+        </div>
+        <button id="btn-logs-refresh" class="lg-refresh" aria-label="Refresh">
+          <i class="ti ti-refresh" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div id="lg-list"></div>
+    </div>
+    <div class="sc-footer">
+      <button id="btn-logs-done" class="sc-footer-back">Back to settings</button>
+    </div>
+  </div>
+
+  <!-- Feature 005 (T012) — pairing flow container. Four sequential states
+       (intro → searching → confirm → ready) + the button-test feedback states.
+       INERT: markup + styling only. The state machine + BLE wiring is T013; the
+       entry point is T013/T017. Exactly one .pairing-step is .is-active at a time
+       (default: intro). Copy is provisional (owner 2026-07-03 — fine to build
+       against; may be refined). Bound to live night tokens (NOT mockup hex); reuses
+       the orb idiom. Preview a state on-device via devtools:
+       document.getElementById('pairing-overlay').classList.remove('hidden') then
+       toggle .is-active between the .pairing-step sections. -->
+  <div id="pairing-overlay" class="pairing-overlay hidden" role="dialog" aria-modal="true" aria-label="Pair a help button">
+    <div class="pairing-panel">
+      <button id="btn-pairing-close" class="settings-close" aria-label="Close">✕</button>
+
+      <div class="pairing-flow">
+
+        <!-- Step 1 · Intro -->
+        <section class="pairing-step is-active" data-step="intro">
+          <p class="pairing-eyebrow">Step 1 · Intro</p>
+          <div class="pairing-orb-wrap"><div class="pairing-orb"></div></div>
+          <h3 class="pairing-title">Add a help button</h3>
+          <p class="pairing-body">A small button you keep nearby. One press reaches your people — no need to find your phone.</p>
+          <button type="button" class="pairing-cta">Pair my button</button>
+          <button type="button" class="pairing-dismiss">Not now</button>
+        </section>
+
+        <!-- Step 2 · Searching -->
+        <section class="pairing-step" data-step="searching">
+          <p class="pairing-eyebrow">Step 2 · Searching</p>
+          <div class="pairing-orb-wrap">
+            <div class="pairing-orb">
+              <span class="pairing-orb-ring pairing-orb-ring--1"></span>
+              <span class="pairing-orb-ring pairing-orb-ring--2"></span>
+            </div>
+          </div>
+          <h3 class="pairing-title">Looking for your button</h3>
+          <p class="pairing-body">Hold the button down until its light blinks, then keep it close.</p>
+          <div class="pairing-status pairing-status--teal">
+            <i class="ti ti-bluetooth" aria-hidden="true"></i>
+            <span>Searching nearby…</span>
+          </div>
+          <p class="pairing-hint">If your phone asks to <strong>Pair &amp; Connect</strong>, tap to allow.</p>
+        </section>
+
+        <!-- Step 3 · Confirm -->
+        <section class="pairing-step" data-step="confirm">
+          <p class="pairing-eyebrow">Step 3 · Confirm</p>
+          <div class="pairing-orb-wrap">
+            <div class="pairing-orb pairing-orb--amber">
+              <span class="pairing-orb-ring pairing-orb-ring--amber"></span>
+            </div>
+          </div>
+          <h3 class="pairing-title">Give it a press</h3>
+          <p class="pairing-body">Press your button once so we know it's the right one.</p>
+          <div class="pairing-status pairing-status--amber">
+            <i class="ti ti-hand-finger" aria-hidden="true"></i>
+            <span>Waiting for a press…</span>
+          </div>
+        </section>
+
+        <!-- Step 4 · Paired -->
+        <section class="pairing-step" data-step="ready">
+          <p class="pairing-eyebrow">Step 4 · Paired</p>
+          <div class="pairing-orb-wrap">
+            <div class="pairing-orb pairing-orb--check"><i class="ti ti-check" aria-hidden="true"></i></div>
+          </div>
+          <h3 class="pairing-title">Your button is ready</h3>
+          <p class="pairing-body">Press any time you need help. Iona will reach your people straight away.</p>
+          <button type="button" class="pairing-cta">Done</button>
+        </section>
+
+        <!-- Button test · working -->
+        <section class="pairing-step" data-step="test-working">
+          <p class="pairing-eyebrow">Heard you</p>
+          <div class="pairing-orb-wrap">
+            <div class="pairing-orb pairing-orb--loud">
+              <i class="ti ti-volume" aria-hidden="true"></i>
+              <span class="pairing-orb-ring pairing-orb-ring--1"></span>
+              <span class="pairing-orb-ring pairing-orb-ring--2"></span>
+            </div>
+          </div>
+          <h3 class="pairing-title">Your button's working</h3>
+          <p class="pairing-body">Iona heard that — a soft chime, a glow and a gentle buzz confirm it, all the way through.</p>
+          <div class="pairing-status pairing-status--teal">
+            <i class="ti ti-wave-sine" aria-hidden="true"></i>
+            <span>Confirmed just now</span>
+          </div>
+        </section>
+
+        <!-- Button test · couldn't confirm -->
+        <section class="pairing-step" data-step="test-failed">
+          <p class="pairing-eyebrow">Couldn't confirm</p>
+          <div class="pairing-orb-wrap">
+            <div class="pairing-orb pairing-orb--muted"><i class="ti ti-refresh" aria-hidden="true"></i></div>
+          </div>
+          <h3 class="pairing-title">Couldn't hear it just now</h3>
+          <p class="pairing-body">Open Iona and try again, and keep the button close. We've noted this check.</p>
+          <div class="pairing-status pairing-status--muted">
+            <i class="ti ti-dots" aria-hidden="true"></i>
+            <span>Noted · try again</span>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="feedback.js"></script>
   <script src="app.js"></script>
+  <!-- SPIKE: remove after Zero call testing -->
+  <a href="/spike-zero.html"
+     style="position:fixed;bottom:6px;left:8px;opacity:0.12;color:#34ECD9;
+            font-size:9px;text-decoration:none;z-index:9999;font-family:monospace">dev</a>
+  <a href="/spike-cc.html"
+     style="position:fixed;bottom:6px;left:32px;opacity:0.12;color:#34ECD9;
+            font-size:9px;text-decoration:none;z-index:9999;font-family:monospace">cc</a>
+  <a href="/spike-inh.html"
+     style="position:fixed;bottom:6px;left:54px;opacity:0.12;color:#34ECD9;
+            font-size:9px;text-decoration:none;z-index:9999;font-family:monospace">inh</a>
 </body>
 </html>
