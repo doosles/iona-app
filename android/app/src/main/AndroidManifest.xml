@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
     <application
+        android:name=".IonaApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -33,9 +35,92 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- ZeroCall spike — Route B ConnectionService -->
+        <service
+            android:name=".ZeroConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Native Twilio Voice: replace Capacitor's MessagingService so Twilio call
+             invite FCM messages are intercepted first; non-Twilio messages fall through
+             to the Capacitor super class. -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove"/>
+        <service
+            android:name=".TwilioFirebaseMsgService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Bridge foreground service — keeps process priority up during a bridge attempt
+             so the Twilio SDK's audio thread is not throttled when backgrounded. -->
+        <service
+            android:name=".BridgeService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Feature 005 — always-armed Flic listener (keeps the button ready while backgrounded). -->
+        <service
+            android:name=".FlicListeningService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- Feature 005 (T023 item 2) — reboot survival + unlock nudge. On cold boot this receiver re-arms
+             FlicListeningService (the same FGS, not a second service) so a press summons with NO app launch.
+             directBootAware + LOCKED_BOOT_COMPLETED so it can run BEFORE first unlock and post the calm
+             "unlock once" nudge — SAFE now because IonaApplication defers the Flic2 manager init (its DB is
+             in credential-encrypted storage, absent in direct boot) until unlock, so a pre-unlock start no
+             longer crashes. Unlocked → arm + clear nudge; locked → nudge only. BOOT_COMPLETED is always the
+             reliable post-unlock arm fallback. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
     <!-- Permissions -->
-
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- ZeroCall spike permissions -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <!-- Twilio Voice SDK — microphone and audio -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Bridge foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- Feature 005 — Flic 2 button (BLE) + always-armed foreground service. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Feature 005 (T003/T023) — reboot survival: BootReceiver re-arms the always-armed FGS on cold
+         boot, so a press summons with no app launch. REQUEST_IGNORE_BATTERY_OPTIMIZATIONS lets pairing
+         ask for an OEM battery-optimization exemption (T013) so the OS keeps the FGS alive. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Feature 005 — a summon while the app is closed launches it via a full-screen intent (wakes +
+         shows over the lock screen); the notification also carries the loud denied-FSI floor. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
 </manifest>

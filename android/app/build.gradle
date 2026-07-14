@@ -40,6 +40,10 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation 'com.twilio:voice-android:6.+'
+    implementation 'com.google.firebase:firebase-messaging:24.+'
+    // Feature 005 — Flic 2 physical help button (pinned; PRE-2)
+    implementation 'com.github.50ButtonsEach:flic2lib-android:2.0.1'
 }
 
 apply from: 'capacitor.build.gradle'

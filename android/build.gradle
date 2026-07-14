@@ -21,6 +21,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Feature 005 — Flic 2 SDK (flic2lib-android) is published on JitPack.
+        maven { url 'https://jitpack.io' }
     }
 }
 
