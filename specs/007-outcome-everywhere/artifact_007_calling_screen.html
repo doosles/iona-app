@@ -1,0 +1,110 @@
+<title>007 — Live calling screen mirror (mockup)</title>
+<style>
+  :root{
+    --page:#081424; --surface:#0C1C30; --surface-2:#13283F; --line:#1C3350;
+    --text:#ECF2F6; --muted:#586A7A; --soft:#8CA3B6;
+    --teal:#25C9BA; --teal-glow:#34ECD9; --teal-deep:#13A99B;
+    --amber:#EFB154; --amber-soft:#F5C97B;
+  }
+  *{box-sizing:border-box}
+  .m7{background:radial-gradient(120% 90% at 50% 0%,#0d2036 0%,#081424 60%,#050B14 100%);
+      color:var(--text);font-family:'Hanken Grotesk',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;padding:30px 16px 64px;min-height:100vh}
+  .m7 h1{font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--soft);text-align:center;margin:0 0 4px;text-wrap:balance}
+  .m7 .sub{text-align:center;color:var(--muted);font-size:12px;margin:0 auto 28px;max-width:60ch;line-height:1.5}
+  .m7 .wrap{max-width:1040px;margin:0 auto;display:grid;grid-template-columns:300px 1fr;gap:34px;align-items:start}
+  @media (max-width:760px){.m7 .wrap{grid-template-columns:1fr}}
+
+  .m7 .phone{background:var(--page);border:1px solid #23405f;border-radius:34px;padding:20px 16px 26px;
+        box-shadow:0 30px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.03);position:sticky;top:20px}
+  .m7 .notch{width:120px;height:5px;border-radius:3px;background:#1C3350;margin:2px auto 20px}
+  .m7 .screen-title{font-family:'Dancing Script','Segoe Script',cursive;font-size:27px;color:var(--amber);text-align:center;margin:6px 0 3px}
+  .m7 .screen-sub{text-align:center;color:var(--muted);font-size:11.5px;margin:0 0 20px}
+  /* Both live orbs = Oran's amber (his colour; he runs the whole escalation) */
+  .m7 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-right:6px;
+       box-shadow:0 0 0 0 rgba(239,177,84,.6);animation:m7pulse 1.6s infinite}
+  @keyframes m7pulse{0%{box-shadow:0 0 0 0 rgba(239,177,84,.55)}70%{box-shadow:0 0 0 9px rgba(239,177,84,0)}100%{box-shadow:0 0 0 0 rgba(239,177,84,0)}}
+  @media (prefers-reduced-motion:reduce){.m7 .dot,.m7 .ring{animation:none}}
+
+  .m7 .row{display:flex;align-items:center;gap:12px;padding:13px 12px;border-radius:14px;background:var(--surface);
+       border:1px solid #163049;margin-bottom:9px}
+  .m7 .row.active{border-color:var(--teal-deep);background:#0e2236;
+              box-shadow:0 0 0 1px rgba(37,201,186,.25),0 8px 22px rgba(0,0,0,.35)}
+  .m7 .av{width:34px;height:34px;border-radius:50%;flex:0 0 34px;display:grid;place-items:center;font-size:13px;font-weight:600;
+      background:#13283F;color:var(--soft)}
+  .m7 .row.active .av{background:rgba(37,201,186,.16);color:var(--teal-glow)}
+  .m7 .who{flex:1;min-width:0}
+  .m7 .nm{font-size:14.5px;font-weight:600;line-height:1.2}
+  .m7 .pos{font-size:11px;color:var(--muted);margin-top:2px}
+  .m7 .status{font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
+  .m7 .ring{width:7px;height:7px;border-radius:50%;background:var(--amber);animation:m7pulse 1.4s infinite}
+  .m7 .s-teal{color:var(--teal-glow)} .m7 .s-amber{color:var(--amber-soft)} .m7 .s-muted{color:var(--muted)} .m7 .s-ok{color:var(--teal)}
+  .m7 .tick{color:var(--teal)}
+  .m7 .eyebrow{font-size:12px;color:var(--soft);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:2px 0 12px}
+  .m7 .tbl-wrap{overflow-x:auto}
+  .m7 table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:520px}
+  .m7 thead th{padding:8px 10px;font-weight:600;color:var(--muted);text-align:left}
+  .m7 tbody td{padding:9px 10px;border-top:1px solid #163049}
+  .m7 .foot{font-size:12px;color:var(--muted);margin:14px 2px 0;line-height:1.5;max-width:62ch}
+  .m7 .foot b{color:var(--soft)}
+</style>
+
+<div class="m7">
+  <h1>Feature 007 · “The outcome, everywhere” — live calling-screen mirror</h1>
+  <p class="sub">Internal mockup for reaction (Constitution III). Not built yet — this is the visual gate before any screen code. Colours and type follow the live Iona design tokens.</p>
+
+  <div class="wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen-title">Oran's Promise</div>
+      <div class="screen-sub"><span class="dot"></span>Oran is reaching your contacts</div>
+
+      <div class="row">
+        <div class="av">M</div>
+        <div class="who"><div class="nm">Margaret</div><div class="pos">1 of 4</div></div>
+        <div class="status s-amber">Voicemail left</div>
+      </div>
+      <div class="row active">
+        <div class="av">D</div>
+        <div class="who"><div class="nm">David</div><div class="pos">2 of 4 · calling</div></div>
+        <div class="status s-teal"><span class="ring"></span>Ringing</div>
+      </div>
+      <div class="row">
+        <div class="av">S</div>
+        <div class="who"><div class="nm">Sarah</div><div class="pos">3 of 4</div></div>
+        <div class="status s-muted">Waiting</div>
+      </div>
+      <div class="row">
+        <div class="av">J</div>
+        <div class="who"><div class="nm">James</div><div class="pos">4 of 4</div></div>
+        <div class="status s-muted">Waiting</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="eyebrow">Per-contact states (one chip, its whole life)</div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">Being called</div><div class="pos">a voice call is ringing</div></div><div class="status s-teal"><span class="ring"></span>Ringing</div></div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">Being texted</div><div class="pos">channel-honest — never says “ringing”</div></div><div class="status s-teal">Sending a text…</div></div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">Voicemail</div><div class="pos">answerphone → message left</div></div><div class="status s-amber">Voicemail left</div></div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">Text sent</div><div class="pos">final-sweep text delivered</div></div><div class="status s-amber">Text sent</div></div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">Unable to assist</div><div class="pos">contact pressed “unable to help”</div></div><div class="status s-amber">Unable to assist</div></div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">No answer</div><div class="pos">rang out</div></div><div class="status s-muted">No answer</div></div>
+      <div class="row"><div class="av">·</div><div class="who"><div class="nm">Reached</div><div class="pos">contact acknowledged — you’re covered</div></div><div class="status s-ok"><span class="tick">✓</span> Reached</div></div>
+
+      <p class="foot" style="margin:6px 2px 0"><b style="color:var(--amber-soft)">Amber = Oran.</b> His character colour — he runs the whole escalation (Iona only opens). The live pulse and every resolved outcome are his. Grey = not yet started / rang out; the teal tick marks “reached — you’re covered”.</p>
+      <div class="eyebrow" style="margin-top:26px">Coherence — one signal, three surfaces agree</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Chip (screen)</th><th>Oran says (audio)</th><th>History (log)</th></tr></thead>
+          <tbody>
+            <tr><td class="s-amber">Voicemail left</td><td>“I’ve left Margaret a voicemail — trying David now.”</td><td class="s-muted">Alert call — Voicemail left</td></tr>
+            <tr><td class="s-amber">Text sent</td><td>“I’ve sent Margaret a text — trying David now.”</td><td class="s-muted">Alert message — Sent</td></tr>
+            <tr><td class="s-amber">Unable to assist</td><td>“Margaret is currently unable to assist — trying David now.”</td><td class="s-muted">Oran’s Signal — Margaret was unable to assist</td></tr>
+            <tr><td class="s-muted">No answer</td><td>“There’s no answer from Margaret — trying David now.”</td><td class="s-muted">Alert call — No answer</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="foot">The chip, the spoken line, and the history all read from the <b>one</b> classified outcome on the signal — so they cannot disagree. <b>Channel honesty:</b> a texted contact never shows “ringing”. <b>Everyone sees this screen</b> (Signal &amp; hands-free); hands-free members get the honest visual now, their audio follows in 008.</p>
+    </div>
+  </div>
+</div>
