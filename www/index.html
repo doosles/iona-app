@@ -110,6 +110,9 @@
         <div class="alarm-terminal-title" id="alarm-terminal-title">I've tried your contacts.</div>
         <!-- v2: copy becomes dynamic when econtact acknowledgement is built — FCM escalation_complete payload will include outcome status -->
         <div class="alarm-terminal-sub" id="alarm-terminal-sub">If someone is able to help, they are on their way.</div>
+        <!-- 009 (R-009-22) — N4 failed-join card ONLY: device-driven "Call [Name]" to the accepting contact
+             (a real carrier call from the member's own phone via ZeroCall). Hidden for every other terminal. -->
+        <button id="btn-call-contact" class="btn-call-contact hidden"></button>
       </div>
       <div class="bridge-card hidden" id="bridge-card">
         <div class="bridge-card-header">

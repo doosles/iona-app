@@ -590,35 +590,83 @@ function initPushListeners() {
       setPreference('escalation_state', 'active');
       setPreference('escalation_state_ts', String(Date.now()));
       showEscalationActiveState();
+      _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
       signalAudioStarted(notification.data);   // feature 006 — begin the Signal audio replica (Iona handover)
     } else if (type === 'escalation_complete') {
       handleEscalationComplete(notification.data);
       signalAudioComplete(notification.data);   // feature 006 — spoken terminal (ack / exhausted)
+      // 009 (R-009-20/21) — the escalation resolved WITHOUT a join (a hands-free accept holds → this never
+      // fires; so reaching this with a pre-armed 'armed' bridgeAttempt means exhausted/no-accept). Drop the
+      // dormant pre-arm so it can't leak into the next summon (a genuine join set state to 'in_call', which
+      // this guard skips).
+      if (bridgeAttempt && bridgeAttempt.state === 'armed') _clearBridgeAttempt();
     } else if (type === 'escalation_advance') {
       signalAudioAdvance(notification.data);     // feature 006 — per-attempt narration + channel-gated ring
-    } else if (type === 'bridge_contact_joined') {
+    } else if (type === 'bridge_contact_joined' || type === 'bridge_join_confirmed') {
+      // 009 T008 — 'bridge_join_confirmed' is the split's honest connected moment (member joined + contact
+      // ADMITTED by the server; R5). It carries the call-plumbing half of R5 here — everConnected, the
+      // connect-anchored 9/10-min teardown timers, in_call — reusing the proven bridge_contact_joined path.
+      // (The reducer chip-settle + 007 screen-freeze are Phase 4, T013 — expected gaps at this seam.) The
+      // legacy 'bridge_contact_joined' arm is retained until Phase 6 strips it; the server no longer sends it.
+      _ensureBridgeAttemptForJoin(notification.data?.conference_name);   // R-009-27 FIX A
       if (bridgeAttempt && bridgeAttempt.state !== 'idle' && bridgeAttempt.state !== 'in_call') {
+        _clearJoinConfirmTimeout();           // R-009-34 FIX H (belt) — join confirmed → disarm the watchdog
         _clearRingTimer();
         bridgeAttempt.everConnected = true;   // connected wins — the reaching sweep is resolved
+        bridgeAttempt.connectedContactFirst = (notification.data?.contact_first || '').trim();  // 009 T016 — carry the name to the dropped terminal
+        bridgeAttempt.connectedContactPhone = (notification.data?.contact_phone || '').trim();  // 009 R-009-22 — capture at join-confirmed
         _setBridgeState('in_call');
+        _saJoined();                              // 009 T013 — reducer → joined (device silent; conversation is the audio)
+        escalationScreenComplete({ outcome: 'acknowledged' });   // 009 T013 — settle the accepted chip ✓ (007 mirror)
         logBridgeEvent('BRIDGE_CONNECTED', { contact_index: bridgeAttempt.currentIndex });
-        _announceConnectedToUser();  // Tier 2 — best-effort named announce to the user (non-terminal)
+        // R-009-29 Directive B — the post-join Participants-Announce is RETIRED; "Connecting with {name}" now
+        // plays as a LOCAL PRE-JOIN clip at join_pending (before the bridge connects). No in-call announce here.
         _startBridgeCallTimers();    // connect-anchored 9-min warning + 10-min hard end
       }
-    } else if (type === 'bridge_advance') {
-      // PHASE 2 — the SERVER drives the sweep and has ALREADY dialled this contact. This push is
-      // DISPLAY-ONLY: reflect which contact is now being reached. No dial, no log, no ring timer.
-      _bridgeReflectAdvance(notification.data);
-    } else if (type === 'bridge_terminal') {
-      // PHASE 2 — the server fired the reaching-exhausted terminal (final sweep, or watchdog). The
-      // spoken line + hangup are server-driven; this is UI catch-up (idempotent with the disconnected path).
-      _bridgeReflectTerminal();
-    } else if (type === 'spike_join_trigger') {
-      // SPIKE 009 Stage 2 (TEMPORARY — strip after the spike): server-sent join-trigger stand-in.
-      // Rides the svc-test namespace via runServiceTestCall; t1 ≈ the Date.now() minted into the
-      // conference name inside it. NO live-path footprint.
-      console.log('[SPIKE-009] join-trigger received t1=' + Date.now());
-      runServiceTestCall('in_app');
+    } else if (type === 'bridge_join_trigger') {
+      // 009 T008/T011/T013 — the server held the accepting contact OUTSIDE the room and fired this join-trigger:
+      // place the member leg INTO the pushed conference NOW (push-authoritative room — R4). The held contact is
+      // admitted on the member-join participant event (server authority), then bridge_join_confirmed lands.
+      // T013: enter join_pending — STOP the device reaching audio (the existing server-side "Connecting with
+      // {name}" connect line into the joining leg is the join announce, R-009-16/R-009-19) and FREEZE the chips
+      // (accepted → connecting, others frozen honest).
+      const _jtConf = notification.data?.conference_name || null;
+      console.log('[009] bridge_join_trigger received conf=' + (_jtConf || '(none)'));
+      // R-009-29 FIX F (app guard) — a STALE/late join_trigger (delayed FCM: airplane / slow-backgrounded) that
+      // arrives AFTER the join already resolved to a terminal (bridge_join_failed→join_failed, or a drop→dropped)
+      // must NOT place the member into a now-dead room. Skip. Covers the failed-first FCM ordering; the server
+      // /twiml/conference hangup (FIX F) covers trigger-first.
+      if (_saState.joinPhase === 'join_failed' || _saState.joinPhase === 'dropped') {
+        console.warn('[009] bridge_join_trigger IGNORED — join already terminal (' + _saState.joinPhase + '); not joining a dead room (FIX F)');
+        return;
+      }
+      _ensureBridgeAttemptForJoin(_jtConf);   // R-009-27 FIX A — reconstruct if the pre-arm lost the /pwa-status race
+      if (bridgeAttempt && bridgeAttempt.state !== 'idle') {
+        bridgeAttempt.state = 'join_pending';
+        bridgeAttempt.joinedConference = _jtConf;   // 009 — the SERVER-minted room the member actually joins (≠ the app-minted conferenceId)
+        _saJoinPending();                 // T013 + R-009-31 #14(b) — device goes quiet; the connect line rides the join leg (server <Say>)
+        escalationScreenFreeze();         // T013 — accepted chip stays connecting, others frozen
+        _joinConference(_jtConf);
+        _armJoinConfirmTimeout(notification.data?.contact_first);   // R-009-34 FIX H (belt) — never dangle if no confirm/fail lands
+      } else {
+        console.warn('[009] bridge_join_trigger with no active bridgeAttempt — ignoring');
+      }
+    } else if (type === 'bridge_join_failed') {
+      // 009 T013/T015 — the 8s boundary closed the held contact before the member device joined. A contact
+      // ANSWERED and accepted (N4: "answered and knows you need help") but the join didn't land in the window —
+      // so this is NOT re-escalation: speak the local failed_join clip (T013) and render the N4 failed-join
+      // card (T015: the 008 dropped-card shell, failed-join copy, device-dial primary + I-NEED-HELP floor).
+      // The honest EventLog row + contact-side graceful close are already server-side (R-009-18).
+      console.log('[009] bridge_join_failed received — N4 failed-join card');
+      _clearJoinConfirmTimeout();             // R-009-34 FIX H (belt) — server drove the failed-join → disarm
+      _clearRingTimer();
+      _ensureBridgeAttemptForJoin(notification.data?.conference_name);   // R-009-27 FIX A — render N4 even if the pre-arm was missing
+      if (bridgeAttempt && bridgeAttempt.state !== 'idle' && bridgeAttempt.state !== 'in_call') {
+        const _fjName = (notification.data?.contact_first || '').trim();
+        const _fjPhone = (notification.data?.contact_phone || '').trim();   // R-009-22 — for the "Call {name}" action
+        _saJoinFailed(_fjName);                     // T013 — speak the N4 line (local clip, offline-safe)
+        _showFailedJoinTerminal(_fjName, _fjPhone); // T015 + R-009-22 — render the N4 card with "Call {name}"
+      }
     }
   });
 
@@ -634,10 +682,12 @@ function initPushListeners() {
       setPreference('escalation_state', 'active');
       setPreference('escalation_state_ts', String(Date.now()));
       showEscalationActiveState();
+      _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
       signalAudioStarted(action.notification?.data);   // feature 006 — begin the Signal audio replica
     } else if (type === 'escalation_complete') {
       handleEscalationComplete(action.notification?.data);
       signalAudioComplete(action.notification?.data);   // feature 006 — spoken terminal
+      if (bridgeAttempt && bridgeAttempt.state === 'armed') _clearBridgeAttempt();   // 009 — drop a never-joined pre-arm
     } else if (type === 'escalation_advance') {
       signalAudioAdvance(action.notification?.data);     // feature 006 — per-attempt narration + channel-gated ring
     } else if (type === 'bridge_contact_joined') {
@@ -646,46 +696,16 @@ function initPushListeners() {
         bridgeAttempt.everConnected = true;   // connected wins — the reaching sweep is resolved
         _setBridgeState('in_call');
         logBridgeEvent('BRIDGE_CONNECTED', { contact_index: bridgeAttempt.currentIndex });
-        _announceConnectedToUser();  // Tier 2 — best-effort named announce to the user (non-terminal)
+        // R-009-29 Directive B — the post-join Participants-Announce is RETIRED; "Connecting with {name}" now
+        // plays as a LOCAL PRE-JOIN clip at join_pending (before the bridge connects). No in-call announce here.
         _startBridgeCallTimers();    // connect-anchored 9-min warning + 10-min hard end
       }
-    } else if (type === 'bridge_advance') {
-      _bridgeReflectAdvance(action.notification?.data);   // PHASE 2 — display-only (server drives the sweep)
-    } else if (type === 'bridge_terminal') {
-      _bridgeReflectTerminal();                           // PHASE 2 — UI catch-up for the server terminal
     } else {
       show('screen-today');
     }
   });
 }
 
-// PHASE 2 — reflect the server's sweep progress in the UI ONLY. The server has already placed the dial;
-// the app never dials, logs, or times out here. Just move the "now reaching" marker on the calling screen.
-function _bridgeReflectAdvance(data) {
-  const advanceIndex = parseInt(data?.contact_index ?? '-1', 10);
-  if (bridgeAttempt && advanceIndex >= 0 &&
-      (bridgeAttempt.state === 'dialing' || bridgeAttempt.state === 'summoning')) {
-    _clearRingTimer();
-    bridgeAttempt.currentIndex = advanceIndex;
-    bridgeAttempt.state = 'dialing';
-    showBridgeDialingState();   // re-renders the calling screen with the new active contact
-  } else {
-    console.log('[Bridge] bridge_advance (display) no-op — state:', bridgeAttempt?.state, 'adv:', advanceIndex);
-  }
-}
-
-// PHASE 2 — UI catch-up when the SERVER fires the reaching-exhausted terminal. The spoken retry line +
-// hangup are server-driven regardless of app state; this just shows the exhausted card (retry via
-// I NEED HELP). Idempotent with the disconnected → exhausted path (guarded so it never slams a live call
-// or a card already shown). escalation_state reset so the retry press passes _startHelpSequence's guard.
-function _bridgeReflectTerminal() {
-  if (bridgeAttempt && bridgeAttempt.state !== 'in_call' && bridgeAttempt.state !== 'terminal_exhausted') {
-    setPreference('escalation_state', 'idle');
-    _cleanupBridgeTimers();
-    _clearBridgeAttempt();
-    showBridgeCard('terminal_exhausted');
-  }
-}
 
 // ── Single backend base — every webhook call reads this (register-token · pwa-status · pwa-respond ·
 // pwa-escalation-live · eventlog). Centralized so the production cutover (VPS migration) is a one-line flip.
@@ -997,6 +1017,14 @@ function escalationScreenComplete(data) {
   } catch (e) { /* best-effort UI — swallow */ }
 }
 
+// 009 (T013) — a hands-free contact accepted (via the bridge_join_* pushes, not escalation_complete). FREEZE
+// the mirror at join_pending: the accepted contact's chip stays 'active' (reads as connecting), every other
+// contact's honest state is frozen (no straggler advance repaints it). The 'reached ✓' settle lands at
+// join-confirmed via escalationScreenComplete({outcome:'acknowledged'}).
+function escalationScreenFreeze() {
+  try { _escScreenSettled = true; } catch (e) { /* best-effort UI — swallow */ }
+}
+
 function showEscalationActiveState() {
   _alarmFlowActive = true;
   alarmSurfaceTakeover('escalation');   // escalation in progress — close any overlay/mirror on top
@@ -1075,8 +1103,12 @@ function showTerminalState() {
 //   leadCopy     — the outcome sentence ("We connected you with" / "We've reached")
 //   name         — contact first name (rendered on its own teal row)
 //   nameFallback — used when name is absent ("your contact" / "a contact")
-function showSuccessTerminal({ leadCopy, name, nameFallback, subLines }) {
+function showSuccessTerminal({ leadCopy, name, nameFallback, subLines, callPhone }) {
   _alarmFlowActive = true;
+  _teardownCallAudioNow();   // R-009-32 ④ (generalized #13) — a bridge success follows a LIVE call: fully reset
+                             // the audio route/mode (not just volume) so the phone isn't left in comm-speaker and
+                             // any success audio would land on the media route. Superset of the old volume restore;
+                             // harmless on the escalation-acknowledged path (no live call → route reset is a no-op).
   show('screen-today');
   _stopVoiceEq();
   hideOrb();
@@ -1106,6 +1138,19 @@ function showSuccessTerminal({ leadCopy, name, nameFallback, subLines }) {
   document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
   document.getElementById('btn-done').classList.add('hidden');
+  // R-009-33 — the completed bridge terminal's SINGLE re-reach button: "📞 Call {name}" to the contact just on
+  // the line (same device-dial primitive as N4/N5). A contact-side drop is indistinguishable from a hangup, so
+  // this one button lets a cut-off member call straight back. Only when a number was carried (bridge success);
+  // the escalation-acknowledged path passes no callPhone → button stays hidden. I NEED HELP stays the floor.
+  const _succBtn = document.getElementById('btn-call-contact');
+  if (callPhone) {
+    const _cn = (name || '').trim();
+    _succBtn.textContent = _cn ? `📞 Call ${_cn}` : '📞 Call your contact';
+    _succBtn.onclick = () => { _callContactDirect(callPhone); };
+    _succBtn.classList.remove('hidden');
+  } else {
+    _succBtn.classList.add('hidden');
+  }
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-alarm-done').classList.remove('hidden');
@@ -1149,6 +1194,7 @@ async function _escalationSelfHeal() {
 
 function showAlarmIdleReset() {
   _alarmFlowActive = false;  // back to the resting Today screen — OKAY's normal plan-based visibility resumes
+  _restoreVolumeNow();   // 009 Story 4 (R-009-5/T019) — catch-all: any return to resting restores prior volume
   // THE single dismissal-path clear (captain fix 2026-07-12 — "one authority over the moment"). The terminal
   // render keeps escalation_state='terminal'; it returns to idle ONLY here — the 60s auto-return, the cancel,
   // the self-heal, and Return-to-Iona all route through this. (A retry press heals its own flag in
@@ -1631,6 +1677,24 @@ async function _escalationConfirmedResolved() {
   }
 }
 
+// 009 Story 4 (R-009-8 / T017 / T019) — Oran loud from the first word. Max media+call volume (both Android
+// streams) + speaker the instant a summon commits, BEFORE the siren/cancel window; mode-blind (shared reaching
+// phase). Restore the prior level at the terminal (R-009-5 — no midnight ambush). Best-effort native calls;
+// never block or fail the alarm.
+function _maxVolumeNow() {
+  try { const { TwilioVoice } = Capacitor.Plugins; if (TwilioVoice) TwilioVoice.maxVolume().catch(() => {}); } catch (e) {}
+}
+function _restoreVolumeNow() {
+  try { const { TwilioVoice } = Capacitor.Plugins; if (TwilioVoice) TwilioVoice.restoreVolume().catch(() => {}); } catch (e) {}
+}
+// 009 (R-009-31 #13) — drop-time audio teardown. Called BEFORE the N5 dropped clip on a live-call drop: it
+// abandons the call's comm-speaker route, resets the audio mode to NORMAL (so the USAGE_MEDIA terminal clip
+// plays out the speaker, not the dying voice-call route — the "no audio at all" symptom), and folds in the
+// Story-4 volume restore. Awaited so the clip that follows lands on a clean media route. Best-effort.
+async function _teardownCallAudioNow() {
+  try { const { TwilioVoice } = Capacitor.Plugins; if (TwilioVoice) await TwilioVoice.teardownCallAudio(); } catch (e) {}
+}
+
 // Cancel window → bridge → escalation. Entry point for all btn-alert and orb presses.
 // The cancel window gates EVERYTHING: bridge fires only after the countdown completes.
 async function _startHelpSequence(triggerSource) {
@@ -1660,6 +1724,7 @@ async function _startHelpSequence(triggerSource) {
 
   _clearBridgeTerminalReturnTimer();  // a fresh help press cancels any pending success-terminal auto-return
   _clearEscalationSelfHealTimer();    // and any stale escalation self-heal backstop from a prior run
+  _maxVolumeNow();   // 009 Story 4 (R-009-8) — FIRST act of the press: loud + speaker BEFORE siren/cancel window
   escalationCountdownValue = getCancelWindowSeconds(memberConfig);
   showCancelWindowState();
 
@@ -1708,14 +1773,14 @@ async function _startHelpSequence(triggerSource) {
       document.getElementById('btn-okay').classList.add('hidden');
       document.getElementById('btn-alert').classList.add('hidden');
 
-      // Countdown complete — try bridge first, then Iona escalation. (Device dial is the
-      // automatic offline FLOOR under both, fired from commitEscalation on backend failure —
-      // not a user-selectable primary method.)
-      const bridgeEngaged = await summonHelp(triggerSource);
-      if (bridgeEngaged) return;
+      // 009 (R-009-20/21) ONE reaching engine — summonHelp now only PRE-ARMS the join capability for a
+      // hands-free member (it always returns false); the ENGINE below drives reaching for BOTH modes, and
+      // the server's econtact press-1 fork decides the accept consequence. (Device dial is the automatic
+      // offline FLOOR, fired from commitEscalation on backend failure — not a user-selectable method.)
+      await summonHelp(triggerSource);
 
-      // Bridge declined (non-GA or no contacts) — dispatch escalation directly.
-      // Siren already played at cancel-window start; go straight to voice message.
+      // Dispatch the engine escalation (reaching for both modes). Siren already played at cancel-window
+      // start; go straight to the voice message.
       const fcmToken = await getPreference('fcm_token');
       if (!fcmToken) {
         const warningEl = document.getElementById('msg-today-warning');
@@ -1786,8 +1851,13 @@ async function handleEscalationComplete(data) {
     console.log(`[SignalAudio] CARD suppressed — stale complete run=${_saTok(data && data.run_token)} ts=${_saParseTs(data)} vs current ts=${_saState.runTs}`);
     return;
   }
+  // 009 — a live-call (hands-free) episode owns its terminal CARD (bridge success / dropped / failed-join). The
+  // engine's escalation_complete still fires (it retires the feature-005 liveness), but it must not draw a
+  // Signal ack card over the conversation the member had. joinPhase is null for Signal + hands-free exhaustion.
+  if (_saState.joinPhase) { console.log('[009] escalation_complete card suppressed — join-phase owns the terminal'); return; }
   const savedState = await getPreference('escalation_state');
   if (savedState !== 'active') return; // belt (subordinate to the verdict above): user already dismissed
+  _restoreVolumeNow();   // 009 Story 4 (R-009-5/T019) — a genuine escalation terminal (ack OR exhausted) → restore prior volume
   await setPreference('escalation_state', 'terminal');
   // Persist the outcome + name alongside 'terminal' so a reopen WHILE THE TERMINAL STILL HOLDS restores the
   // RIGHT card — acknowledged (success/reached) vs exhausted (captain fix 2026-07-12; the restore paths in
@@ -1805,12 +1875,15 @@ async function handleEscalationComplete(data) {
     // painted by escalationScreenComplete, now frozen against stragglers) for a beat before the card —
     // the spoken ack terminal plays over this hold. Cold-open/resume restores go straight to the card
     // (escalation_state is already 'terminal' — this hold only shapes the live-foreground moment).
-    await _saPause(3000);
+    await _saSettleBeforeCard();   // R-009-29 Directive A — uniform 2000ms settle before the success card
     if ((await getPreference('escalation_state')) === 'terminal') {
       showEscalationAcknowledgedState(data.contact_name || '');
     }
   } else {
-    showTerminalState();
+    await _saSettleBeforeCard();   // R-009-29 Directive A — uniform 2000ms settle before the exhausted card
+    if ((await getPreference('escalation_state')) === 'terminal') {
+      showTerminalState();
+    }
   }
 }
 
@@ -2311,6 +2384,33 @@ let _bridgeRingTimer = null;
 let _bridgeCallEndTimer  = null;  // connect-anchored 10-min hard-end handle
 let _bridgeCallWarnTimer = null;  // connect-anchored 9-min warning handle
 let _bridgeTerminalReturnTimer = null;  // success-terminal auto-return handle (cleared on any manual act)
+let _joinConfirmTimer = null;     // R-009-34 FIX H (app belt) — join-confirmation watchdog handle
+const JOIN_CONFIRM_TIMEOUT_MS = 20000;   // R-009-35 A — TRUE last resort. The server primary responds in ~12s
+                                         // (8s admit-verify watchdog + its with-phone join_failed push over FCM);
+                                         // a belt at 10s FRONT-RAN it and won with worse data (no phone →
+                                         // buttonless N4) + a destructive early hangup (R-009-34 ③). At 20s the
+                                         // server always wins; the belt fires ONLY if the server is genuinely dark.
+
+// R-009-34 FIX H (app belt) — arm/clear the join-confirmation watchdog. Armed when the member leg joins
+// (bridge_join_trigger → _joinConference); cleared the moment join resolves (confirmed / failed / dropped).
+function _clearJoinConfirmTimeout() {
+  if (_joinConfirmTimer) { clearTimeout(_joinConfirmTimer); _joinConfirmTimer = null; }
+}
+function _armJoinConfirmTimeout(contactFirst) {
+  _clearJoinConfirmTimeout();
+  const _name = (contactFirst || '').trim();
+  _joinConfirmTimer = setTimeout(() => {
+    _joinConfirmTimer = null;
+    // Fire ONLY if the join never resolved (still pending). If join_confirmed/failed/dropped already ran, the
+    // phase moved off join_pending and this is a no-op — the belt never overrides a real outcome.
+    if (_saState.joinPhase !== 'join_pending') return;
+    console.warn('[009] FIX H belt — no join_confirmed within ' + JOIN_CONFIRM_TIMEOUT_MS + 'ms; leaving the room + rendering N4 (member never dangles)');
+    try { const { TwilioVoice } = Capacitor.Plugins; if (TwilioVoice) TwilioVoice.hangup({}); } catch (e) {}  // leave the room
+    _clearRingTimer();
+    _saJoinFailed(_name);                  // speak the N4 line (local clip, offline-safe)
+    _showFailedJoinTerminal(_name, '');    // N4 card; no phone on the trigger push → re-press floor beneath
+  }, JOIN_CONFIRM_TIMEOUT_MS);
+}
 
 // Cancel a pending success-terminal auto-return (manual Return-to-Iona, a fresh I NEED HELP press,
 // or the resting-Today reset). Safe no-op if none is pending.
@@ -2322,7 +2422,6 @@ function _clearBridgeTerminalReturnTimer() {
 // stopService() has no background restriction — safe to call from timers/background events.
 function _clearBridgeAttempt() {
   _clearBridgeCallTimers();  // connect-anchored 9-/10-min timers never outlive the attempt
-  _clearReSweepTimer();      // a pending between-sweep re-dial must never outlive the attempt
   bridgeAttempt = null;
   const { TwilioVoice } = Capacitor.Plugins;
   if (TwilioVoice) TwilioVoice.stopBridgeService({}).catch(() => {});
@@ -2334,17 +2433,31 @@ function _createBridgeAttempt(triggerSource, memberAirtableId) {
     conferenceId: `bridge-${memberAirtableId}-${Date.now()}`,
     state: 'idle',
     contacts: [],
-    currentIndex: 0,
-    sweep: 1,                                    // current round — DISPLAY only in Phase 2 (server owns the sweep)
-    sweepCount: BRIDGE_DEFAULT_SWEEP_COUNT,       // member's chosen rounds [1,3]; kept for reference/UI (server authoritative)
-    _reSweepTimer: null,                          // retired in Phase 2 (server owns the between-sweep gap); kept null for teardown safety
+    currentIndex: 0,                             // read by the join-confirmed / name-lookup survivors; the sweep that DROVE it is gone (Phase 6)
     currentAttemptRecordId: null,
-    reconnectAttempted: false,
     everConnected: false,                         // PHASE 2 — set true when a contact genuinely joins; gates the disconnected handler
     startTime: Date.now(),
     triggerSource,
     memberAirtableId,
   };
+}
+
+// R-009-27 FIX A (#3) — self-sufficient join. The SERVER is the mode authority: if it forked to hold and
+// sent a join push, this member IS entitled hands-free. The app must NOT veto the join because its local
+// pre-arm (summonHelp) lost the race with the async /pwa-status mode-load (bridgeAttempt still null). If
+// there's no active attempt, RECONSTRUCT a minimal armed one from the push — the member rec id is encoded in
+// the conference name (bridge-<memberRecId>-<ts>) — so bridge_join_trigger/confirmed/failed all proceed.
+// Idempotent: a genuine armed/live attempt stands untouched.
+function _ensureBridgeAttemptForJoin(conf) {
+  if (bridgeAttempt && bridgeAttempt.state !== 'idle') return true;
+  let mid = '';
+  try { const p = String(conf || '').split('-'); if (p[1] && p[1].indexOf('rec') === 0) mid = p[1]; } catch (e) {}
+  const { TwilioVoice: _tvFgs } = Capacitor.Plugins;
+  if (_tvFgs) _tvFgs.startBridgeServiceNow({}).catch(() => {});   // parity with the summonHelp pre-arm (place-leg-from-background)
+  bridgeAttempt = _createBridgeAttempt('server_join', mid);
+  bridgeAttempt.state = 'armed';
+  console.log('[009] FIX A — reconstructed bridgeAttempt for a server join (pre-arm was missing) mid=' + (mid || '(none)'));
+  return true;
 }
 
 // T018 — EventLog write: retry once, console.error on second failure, never blocking
@@ -2370,10 +2483,9 @@ function logBridgeEvent(eventType, payload = {}) {
   }));
 }
 
-// PHASE 2 — _speakAndCleanupTerminal() is RETIRED. The reaching-exhausted terminal is now fired by the
-// SERVER (reply_to_airtable_webhook _bridge_server_terminal: speak-to-conference + <Hangup/> + BRIDGE_TERMINAL
-// + a UI-only bridge_terminal FCM), so it works with the app foreground, backgrounded, or dead. The app
-// shows the exhausted card from the disconnected handler (everConnected === false) or _bridgeReflectTerminal.
+// PHASE 6 (009) — the parallel bridge sweep is DELETED. Reaching is the ENGINE (run_escalation) for BOTH
+// modes; the reaching-exhausted terminal arrives as the engine's escalation_complete (exhausted) → the
+// reducer speaks the local exhausted clip + handleEscalationComplete renders the terminal.
 
 // Error states: bridge never connected — no conference to announce to; clear attempt after delay.
 function _clearBridgeAttemptAfterDelay() {
@@ -2385,12 +2497,17 @@ function _clearBridgeAttemptAfterDelay() {
 // NON-TERMINAL (speaks without hanging up) and handles the 2-participant race + retry itself; the app
 // only supplies the locally-known contact name. Any failure is swallowed — the call is unaffected.
 function _announceConnectedToUser() {
-  if (!bridgeAttempt || !bridgeAttempt.conferenceId) return;
-  const name = bridgeAttempt.contacts?.[bridgeAttempt.currentIndex]?.name || '';
+  // 009 — target the SERVER-minted room the member actually joined (join-trigger), not the stale app-minted
+  // conferenceId; and take the name from the join-confirmed push (connectedContactFirst) since the pre-armed
+  // attempt has no contacts list. Both fall back to the legacy sources for the pre-009 bridge path.
+  const conf = bridgeAttempt && (bridgeAttempt.joinedConference || bridgeAttempt.conferenceId);
+  if (!conf) return;
+  const name = (bridgeAttempt.connectedContactFirst
+    || bridgeAttempt.contacts?.[bridgeAttempt.currentIndex]?.name || '');
   fetch(`${STATUS_BASE}/bridge/announce-to-user`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'ngrok-skip-browser-warning': 'true' },
-    body: new URLSearchParams({ conference_name: bridgeAttempt.conferenceId, contact_name: name }),
+    body: new URLSearchParams({ conference_name: conf, contact_name: name }),
   }).catch(err => console.warn('[Bridge] announce-to-user failed (non-fatal):', err));
 }
 
@@ -2435,30 +2552,6 @@ function _stopVoiceEq() {
 }
 
 // Bridge screen 1 — named contacts + Waiting (replaces bare "reaching" bridge-card)
-function showBridgeDialingState() {
-  _stopVoiceEq();
-  hideOrb();
-  document.getElementById('today-empty').classList.add('hidden');
-  document.getElementById('today-thread').classList.add('hidden');
-  document.getElementById('alarm-countdown-card').classList.add('hidden');
-  document.getElementById('alarm-terminal-card').classList.add('hidden');
-  document.getElementById('bridge-card').classList.add('hidden');
-  // Shared calling screen — the bridge has real names + phone numbers in its fetched
-  // contacts, and progressive status (prior = No answer, current = Ringing…, later = Waiting).
-  renderCallingScreen({
-    method: 'bridge',
-    label: 'Reaching your contacts',
-    contacts: bridgeAttempt?.contacts || [],
-    activeIndex: bridgeAttempt?.currentIndex ?? -1,
-  });
-  document.getElementById('btn-okay').classList.add('hidden');
-  document.getElementById('btn-okay').classList.remove('btn--pulse');
-  document.getElementById('btn-alert').classList.add('hidden');
-  document.getElementById('btn-alert').classList.remove('btn--pulse');
-  document.getElementById('btn-cancel').classList.add('hidden');
-  document.getElementById('btn-alarm-done').classList.add('hidden');
-}
-
 // Bridge screen 2 — orb + voice EQ (contact answered, call live)
 function showBridgeInCallState() {
   document.getElementById('alarm-escalation-card').classList.add('hidden');
@@ -2478,7 +2571,7 @@ function showBridgeInCallState() {
 // Bridge screen 3 — terminal end screen.
 // state='terminal_exhausted': contacts tried, retry allowed via btn-alert.
 // Anything else (resolved, duration): escalation-style terminal, Return to Iona only.
-function showBridgeTerminalState(state, connectedName) {
+function showBridgeTerminalState(state, connectedName, contactPhone) {
   _alarmFlowActive = true;
   _stopVoiceEq();
   hideOrb();
@@ -2490,6 +2583,10 @@ function showBridgeTerminalState(state, connectedName) {
   document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
+  document.getElementById('btn-call-contact').classList.add('hidden');   // default hidden; re-shown per-branch — N4 (R-009-22), N5 (R-009-31 C), completed (R-009-33) all carry the "Call {name}" re-reach button
+  _teardownCallAudioNow();   // R-009-32 ④ (generalized #13) — every bridge terminal (N4/N5/exhausted/success)
+                             // fully resets the audio route/mode + volume here, not just volume; the spoken
+                             // clips (N4/N5) also tear down before their own clip for audibility (belt + braces).
   if (state === 'terminal_dropped') {
     // R-008-5 (feature 008) — TRUTHFUL connected-then-dropped terminal. Shown ONLY when a contact
     // was genuinely connected (everConnected) and the call then dropped involuntarily: the old
@@ -2501,7 +2598,43 @@ function showBridgeTerminalState(state, connectedName) {
     document.getElementById('alarm-terminal-title').textContent =
       _dn ? `You were connected to ${_dn}, then the line dropped.`
           : 'You were connected to your contact, then the line dropped.';
-    document.getElementById('alarm-terminal-sub').textContent   = 'Press I NEED HELP to try again.';
+    // 009 (R-009-31 Directive C) — PARITY with N4: a device-dial "📞 Call {name}" to the contact who was just
+    // on the line (they know you need help — R-009-4). Same primitive as N4 (_callContactDirect / ZeroCall).
+    // The I NEED HELP re-press stays the standing floor beneath it. No number captured → the shell's floor only.
+    const _dropBtn = document.getElementById('btn-call-contact');
+    if (contactPhone) {
+      _dropBtn.textContent = _dn ? `📞 Call ${_dn}` : '📞 Call your contact';
+      _dropBtn.onclick = () => { _callContactDirect(contactPhone); };
+      _dropBtn.classList.remove('hidden');
+      document.getElementById('alarm-terminal-sub').textContent = 'Tap to call them, or press I NEED HELP to try again.';
+    } else {
+      document.getElementById('alarm-terminal-sub').textContent = 'Press I NEED HELP to try again.';
+    }
+    document.getElementById('btn-alert').classList.remove('hidden');
+    document.getElementById('btn-alert').classList.remove('btn--pulse');
+    document.getElementById('btn-alarm-done').classList.remove('hidden');
+  } else if (state === 'terminal_failed_join') {
+    // 009 (R-009-16 N4 / T015) — the contact ANSWERED and accepted, but the member device could not join in
+    // the 8s window. NOT the exhausted lie (a willing human is standing by, R-009-4): reuse this 008
+    // dropped-card SHELL with its EXISTING actions — I NEED HELP re-press (the standing floor, which reaches
+    // the accepting contact via the engine / device-dial floor) + Return to Iona. Spoken locally by
+    // _saJoinFailed (offline-safe). Name carried per R-009-16.
+    const _fj = (connectedName || '').trim();
+    document.getElementById('alarm-terminal-title').textContent =
+      _fj ? `${_fj} answered and knows you need help.`
+          : 'Your contact answered and knows you need help.';
+    // 009 (R-009-22) — PRIMARY action: a device-driven "Call {name}" to the accepting contact (a willing human
+    // is standing by — R-009-4). The I NEED HELP re-press stays the standing floor beneath it.
+    const _fjBtn = document.getElementById('btn-call-contact');
+    if (contactPhone) {
+      _fjBtn.textContent = _fj ? `📞 Call ${_fj}` : '📞 Call your contact';
+      _fjBtn.onclick = () => { _callContactDirect(contactPhone); };
+      _fjBtn.classList.remove('hidden');
+      document.getElementById('alarm-terminal-sub').textContent = 'Tap to call them, or press I NEED HELP to try again.';
+    } else {
+      // No number captured (rare) — fall to the shell's re-press floor, never a dead button.
+      document.getElementById('alarm-terminal-sub').textContent = 'Press I NEED HELP to try again.';
+    }
     document.getElementById('btn-alert').classList.remove('hidden');
     document.getElementById('btn-alert').classList.remove('btn--pulse');
     document.getElementById('btn-alarm-done').classList.remove('hidden');
@@ -2520,7 +2653,10 @@ function showBridgeTerminalState(state, connectedName) {
   } else {
     // Resolved/success → the SHARED restyled success terminal (one card for bridge + escalation).
     // Bridge truth: the user was on a call with them. Returns — the shared fn owns card-show + 60s arm.
-    showSuccessTerminal({ leadCopy: 'We connected you with', name: connectedName, nameFallback: 'your contact' });
+    // R-009-33 — pass the contact number so the completed bridge terminal shows the single re-reach button
+    // (covers the connect-then-DONE and the indistinguishable connect-then-DROPPED cases). Escalation-
+    // acknowledged calls showSuccessTerminal with NO callPhone → no button (unchanged).
+    showSuccessTerminal({ leadCopy: 'We connected you with', name: connectedName, nameFallback: 'your contact', callPhone: contactPhone });
     return;
   }
   document.getElementById('alarm-terminal-card').classList.remove('hidden');
@@ -2531,19 +2667,15 @@ function showBridgeTerminalState(state, connectedName) {
 }
 
 // T016 / T017 — Bridge UI state rendering
-function showBridgeCard(state, connectedName) {
+function showBridgeCard(state, connectedName, contactPhone) {
   _alarmFlowActive = true;  // any bridge screen (incl. already_connecting/error fallback) owns the Today screen
   alarmSurfaceTakeover('bridge');   // incoming bridge/Oran call — close any overlay/mirror screen first
-  if (state === 'summoning' || state === 'dialing' || state === 'reconnecting') {
-    showBridgeDialingState();
-    return;
-  }
   if (state === 'in_call') {
     showBridgeInCallState();
     return;
   }
-  if (state === 'terminal_exhausted' || state === 'terminal_dropped') {
-    showBridgeTerminalState(state, connectedName);
+  if (state === 'terminal_exhausted' || state === 'terminal_dropped' || state === 'terminal_failed_join') {
+    showBridgeTerminalState(state, connectedName, contactPhone);
     return;
   }
 
@@ -2640,7 +2772,7 @@ function _clearRingTimer() {
 function _cleanupBridgeTimers() {
   _clearRingTimer();
   _clearBridgeCallTimers();
-  _clearReSweepTimer();   // terminal/cleanup cancels any pending between-sweep re-dial
+  _clearJoinConfirmTimeout();   // R-009-34 FIX H (belt) — any terminal cleanup disarms the join watchdog
 }
 
 // FR-016 — hard bridge failure (contacts never tried) falls through to Iona escalation.
@@ -2662,25 +2794,18 @@ async function _fetchVoiceToken() {
   return data.token ?? data.value;
 }
 
-// Retired in Phase 2 (the server owns the between-sweep gap and re-dials). Kept as a safe no-op because
-// the teardown paths (_clearBridgeAttempt / _cleanupBridgeTimers) still call it; _reSweepTimer is never set.
-function _clearReSweepTimer() {
-  if (bridgeAttempt && bridgeAttempt._reSweepTimer) {
-    clearTimeout(bridgeAttempt._reSweepTimer);
-    bridgeAttempt._reSweepTimer = null;
-  }
-}
-
-// PHASE 2 — _advanceContact() and _scheduleReSweep() are RETIRED. The server now drives every dial and
-// every between-sweep gap (see reply_to_airtable_webhook _bridge_server_advance / _bridge_arm_gap), so a
-// backgrounded app can never stall the sweep. The app is display-only: bridge_advance / bridge_terminal
-// FCMs update the UI (_bridgeReflectAdvance / _bridgeReflectTerminal); the disconnected handler shows the
-// exhausted card when the server hangs up the reaching leg.
+// PHASE 6 (009) — the app-side sweep surface (_advanceContact/_scheduleReSweep, and the display-only
+// bridge_advance/bridge_terminal reflectors) is DELETED. Reaching is the ENGINE for both modes; the app
+// reflects it through the escalation_* reducer (007 screen), not a bridge sweep.
 
 // T013 — dial current contact: user joins conference + backend dials contact
 // Join user's leg to the conference — called ONCE at bridge start, never on contact advance.
-async function _joinConference() {
+async function _joinConference(conferenceOverride = null) {
   if (!bridgeAttempt) return false;
+  // 009 T011 — push-authoritative room: the join-trigger carries the conference the server is holding the
+  // accepting contact for, so the member leg MUST land there or the admit never matches _hold_state. Falls
+  // back to the app-minted id (they are the same room; the override is the single authority — R4).
+  const _joinConf = conferenceOverride || bridgeAttempt.conferenceId;
 
   let accessToken;
   try {
@@ -2699,7 +2824,7 @@ async function _joinConference() {
   try {
     await TwilioVoice.connectOutbound({
       accessToken,
-      conferenceName: bridgeAttempt.conferenceId,
+      conferenceName: _joinConf,
       endOnExit: 'false',
       bridge: 'true',
     });
@@ -2715,177 +2840,92 @@ async function _joinConference() {
   return true;
 }
 
-// PHASE 2 — kick off the bridge sweep by asking the server to dial contact 0. Called ONCE, from
-// summonHelp (after the user's leg joins the conference). The server then OWNS the sweep: it loads all
-// contacts + the sweep count, dials each contact, waits the between-sweep gap, and fires the terminal —
-// no client ring timer, no client-side sweep logic. The server writes the BRIDGE_DIALING EventLog
-// (with Sweep {n}), so the app no longer logs it here (avoids double records). The dial is
-// fire-and-forget: a backgrounded app can never stall the sweep because the app isn't driving it.
-async function _dialCurrentContact() {
-  if (!bridgeAttempt) return;
-  const idx     = bridgeAttempt.currentIndex;   // 0 at kickoff
-  const contact = bridgeAttempt.contacts[idx];
-  _setBridgeState('dialing');
-
-  const userName = currentMember?.customFields?.['first-name'] ?? 'Your contact';
-  fetch(`${STATUS_BASE}/bridge/dial-contact`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'ngrok-skip-browser-warning': 'true' },
-    body: new URLSearchParams({
-      conference_name:    bridgeAttempt.conferenceId,
-      contact_phone:      contact.phone,
-      contact_index:      String(idx),
-      user_name:          userName,
-      member_airtable_id: bridgeAttempt.memberAirtableId,
-    }),
-  }).catch(err => console.error('[Bridge] dial-contact POST failed:', err));
+// PHASE 2 — a connected call dropped involuntarily. The server owns the reaching sweep; the app does
+// NOT re-drive contacts here. (009 T023 — FR-014 auto-reconnect deleted: a dropped LIVE call now goes
+// STRAIGHT to this truthful dropped terminal, no silent re-ring.) End cleanly on the TRUTHFUL dropped
+// terminal (R-008-5): this path only runs after a contact genuinely connected, so the old exhausted
+// card ("none of your contacts are able to help") was false here — the conversation happened. Name
+// captured BEFORE _clearBridgeAttempt nulls the attempt (the resolved-terminal capture-before-clear
+// pattern). Retry way-back unchanged (I NEED HELP; offline it lands on the device-dial floor).
+async function _bridgeDroppedTerminal() {
+  // 009 T016 — the R-008-5 dropped card is UNCHANGED in copy + actions; 009 only teaches it to SPEAK (N5),
+  // carrying the name (R-009-16). Name = the connected contact — the join-confirmed push's contact_first
+  // under late-join (the pre-armed attempt has no contacts list), falling back to the legacy contacts lookup.
+  const _dropName = (bridgeAttempt?.connectedContactFirst
+    || (bridgeAttempt?.contacts?.[bridgeAttempt.currentIndex]?.name || '').split(' ')[0] || '');
+  // R-009-31 Directive C — carry the connected contact's number onto the N5 dropped card so it gains the
+  // SAME "📞 Call {name}" device-dial action as N4 (a willing human was just on the line — R-009-4). Captured
+  // BEFORE _clearBridgeAttempt nulls it (join-confirmed push, R-009-22 connectedContactPhone).
+  const _dropPhone = (bridgeAttempt?.connectedContactPhone || '').trim();
+  setPreference('escalation_state', 'idle');
+  _cleanupBridgeTimers();
+  await _saDropped(_dropName);   // R-009-31 #13 — teardown the live-call audio route + restore media/volume, THEN speak the N5 clip (awaited so the settle+card follow the clip, not the drop)
+  _clearBridgeAttempt();
+  await _saSettleBeforeCard();   // R-009-29 Directive A — uniform 2000ms settle before the N5 dropped card (clip plays during the hold)
+  showBridgeCard('terminal_dropped', _dropName, _dropPhone);
 }
 
-// PHASE 2 — a connected call dropped involuntarily and the single reconnect attempt failed. The server
-// owns the reaching sweep; the app does NOT re-drive contacts here. End cleanly on the TRUTHFUL
-// dropped terminal (R-008-5): this path only runs after a contact genuinely connected, so the old
-// exhausted card ("none of your contacts are able to help") was false here — the conversation
-// happened. Name captured BEFORE _clearBridgeAttempt nulls the attempt (the resolved-terminal
-// capture-before-clear pattern). Retry way-back unchanged (I NEED HELP; offline it lands on the
-// device-dial floor).
-function _bridgeReconnectGaveUp() {
-  const _dropName = (bridgeAttempt?.contacts?.[bridgeAttempt.currentIndex]?.name || '').split(' ')[0];
+// 009 (T015) — N4 failed-join terminal. Capture the name, tidy the attempt/timers, reset escalation_state so
+// a re-press summons cleanly, then render the 008 dropped-card SHELL with the N4 copy-variant (the spoken N4
+// line fires from _saJoinFailed in the push handler). Mirrors _bridgeDroppedTerminal's capture-before-clear.
+async function _showFailedJoinTerminal(contactFirst, contactPhone) {
   setPreference('escalation_state', 'idle');
   _cleanupBridgeTimers();
   _clearBridgeAttempt();
-  showBridgeCard('terminal_dropped', _dropName);
+  await _saSettleBeforeCard();   // R-009-29 Directive A — uniform 2000ms settle before the N4 card (the _saJoinFailed clip plays during the hold)
+  showBridgeCard('terminal_failed_join', contactFirst || '', contactPhone || '');
 }
 
-// FR-014 reconnect — user re-joins the existing conference (contact is still there)
-// Does NOT re-dial the contact: conference persists because user leg has endConferenceOnExit=false
-async function _reconnectCurrentContact() {
-  if (!bridgeAttempt) return;
-  _setBridgeState('reconnecting');
-
-  let accessToken;
-  try {
-    accessToken = await _fetchVoiceToken();
-  } catch (err) {
-    console.error('[Bridge] reconnect voice-token fetch failed:', err);
-    logBridgeEvent('BRIDGE_RECONNECT_FAILED', { contact_index: bridgeAttempt.currentIndex, error: err.message });
-    _bridgeReconnectGaveUp();
-    return;
-  }
-
-  const { TwilioVoice } = Capacitor.Plugins;
-  try {
-    await TwilioVoice.connectOutbound({
-      accessToken,
-      conferenceName: bridgeAttempt.conferenceId,
-      endOnExit: 'false',
-      bridge: 'true',
-    });
-  } catch (err) {
-    console.error('[Bridge] reconnect connectOutbound failed:', err);
-    logBridgeEvent('BRIDGE_RECONNECT_FAILED', { contact_index: bridgeAttempt.currentIndex, error: err.message });
-    _bridgeReconnectGaveUp();
-    return;
-  }
-
-  // 30s reconnect ring timer — if onConnected doesn't fire, give up (server owns the sweep).
-  _clearRingTimer();
-  _bridgeRingTimer = setTimeout(() => {
-    if (!bridgeAttempt || bridgeAttempt.state !== 'reconnecting') return;
-    logBridgeEvent('BRIDGE_RECONNECT_FAILED', { contact_index: bridgeAttempt.currentIndex, reason: 'timeout' });
-    _bridgeReconnectGaveUp();
-  }, BRIDGE_RING_TIMEOUT_MS);
+// 009 (R-009-22) — place a SINGLE real carrier call to the accepting contact from the member's own phone,
+// via the SAME native primitive as the device-dial floor (ZeroCall). One number, one pass: the native dialer
+// takes over the screen. Best-effort — a member with no telephony still has the I-NEED-HELP re-press floor.
+async function _callContactDirect(phone) {
+  if (!phone) return;
+  const { ZeroCall } = Capacitor.Plugins;
+  if (!ZeroCall || !_hasTelephony) { console.warn('[009] Call contact — no telephony; use I NEED HELP'); return; }
+  try { await ZeroCall.startDialCycle({ numbers: [phone], passes: 1 }); }
+  catch (e) { console.error('[009] Call contact dial failed:', e); }
 }
 
 // T010 — summonHelp: single entry point for all triggers (FR-002, FR-001: no confirmation step)
 async function summonHelp(triggerSource) {
-  // Guard 1 (sync): already connecting
-  if (bridgeAttempt && bridgeAttempt.state !== 'idle') {
-    showBridgeCard('already_connecting');
-    setTimeout(hideBridgeCard, 3000);
-    return true;
-  }
+  // 009 (R-009-20/21) ONE reaching engine — summonHelp NO LONGER kicks a parallel bridge sweep. The ENGINE
+  // (run_escalation, reached via the caller's commitEscalation fall-through) drives reaching for BOTH modes,
+  // emitting the escalation_* stream the reducer + 007 chips render; the server's econtact press-1 fork is
+  // the SOLE mode authority for the accept consequence (Signal ack vs hold-then-admit). summonHelp's only
+  // remaining job is to PRE-ARM the join capability for a member THIS APP knows is hands-free — an FGS + a
+  // bridgeAttempt in 'armed' state — so a later bridge_join_trigger (a contact accepted → server holding
+  // them) can place the member leg fast (_joinConference). It ALWAYS returns false → the caller proceeds to
+  // the engine. Arming keys off the app's OWN mode knowledge (R-009-21 #2): arming a lapsed member is a
+  // harmless FGS start + a dormant bridgeAttempt; the live entitlement decision is the server fork.
+  // (The old /bridge/contacts gate + _dialCurrentContact sweep kick were DELETED in Phase 6.)
+  if (bridgeAttempt && bridgeAttempt.state !== 'idle') return false;   // already armed/joined — let it stand
+  const _wantJoin = (_hasHandsFree === true && _escalationMode === 'handsfree');
+  if (!_wantJoin) return false;   // Signal (or mode not yet known) → nothing to pre-arm; the engine drives reaching
 
-  // Start foreground service NOW — synchronously before any await — so it reaches
-  // runOnUiThread on the main thread while the Activity is still in foreground state.
-  // Android 12+ blocks startForegroundService() once onStop() has been called.
-  // All exit paths call _clearBridgeAttempt() which calls stopBridgeService().
+  // Start the foreground service NOW — synchronously, before any await — so it reaches the main thread while
+  // the Activity is still foreground (Android 12+ blocks startForegroundService() after onStop()). Needed so
+  // the member leg can be placed from background at the join-trigger. Cleared with the bridgeAttempt.
   const { TwilioVoice: _tvFgs } = Capacitor.Plugins;
   if (_tvFgs) _tvFgs.startBridgeServiceNow({}).catch(() => {});
-
   const { KeepAwake } = Capacitor.Plugins;
   KeepAwake.keepAwake();
 
   const memberAirtableId = await getPreference('member_airtable_id');
-  console.log('[Bridge] summonHelp — memberAirtableId:', memberAirtableId);
   if (!memberAirtableId) {
-    console.error('[Bridge] summonHelp — member_airtable_id not found in Preferences');
+    console.error('[Bridge] summonHelp pre-arm — member_airtable_id not found; engine still runs (never-silent)');
     if (_tvFgs) _tvFgs.stopBridgeService({}).catch(() => {});
     return false;
   }
-
-  // T011 — create attempt; show summoning immediately
+  // Pre-arm: a bridgeAttempt in 'armed' (state != 'idle', so the bridge_join_trigger / _confirmed handlers
+  // fire) but with NO reaching UI — the 007 escalation screen (shown by the caller / escalation_started)
+  // owns reaching in both modes now, so we deliberately do NOT _setBridgeState('summoning') (the retired
+  // bridge dialing screen). The join-phase screen transitions land at accept (T013).
   bridgeAttempt = _createBridgeAttempt(triggerSource, memberAirtableId);
-  _setBridgeState('summoning');
-  // No summon-anchored watchdog: the reaching phase is capped by the per-contact ring timeout
-  // (client 30s + server Twilio Timeout=35s); the connected call is capped by the connect-anchored
-  // timers, armed when the contact joins (see the bridge_contact_joined handler).
+  bridgeAttempt.state = 'armed';
   logBridgeEvent('BRIDGE_SUMMONED', { trigger_source: triggerSource });
-
-  // Guards 2+3 (async): GA check and contacts via backend
-  let contacts;
-  try {
-    const res = await fetch(
-      `${STATUS_BASE}/bridge/contacts?member_airtable_id=${encodeURIComponent(memberAirtableId)}`,
-      { headers: { 'ngrok-skip-browser-warning': 'true' } }
-    );
-    if (res.status === 403) {
-      // Not Guardian Angel → no bridge; the CALLER falls through to Iona escalation. Do NOT call
-      // hideBridgeCard() here — it re-reveals OKAY THANKS / I NEED HELP, which then flash as a
-      // two-button screen during the caller's awaited voice message before showEscalationActiveState
-      // renders. The 'summoning' state already hid every card + button, so leaving them hidden gives a
-      // clean transition straight into the calling screen.
-      _cleanupBridgeTimers();
-      _clearBridgeAttempt();
-      return false;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const _data = await res.json();
-    // Response is EITHER the legacy bare array OR the new {contacts, sweep_count} object — tolerate both
-    // so app + webhook can deploy in any order. Sweep count (member's chosen rounds) rides the object;
-    // absent → default 2 (fail-safe: never block or fail the bridge on a missing count).
-    contacts = Array.isArray(_data) ? _data : (_data.contacts || []);
-    if (bridgeAttempt) bridgeAttempt.sweepCount = _clampSweepCount(Array.isArray(_data) ? undefined : _data.sweep_count);
-    console.log('[Bridge] contacts fetch status:', res.status, 'sweepCount:', bridgeAttempt?.sweepCount, 'contacts:', JSON.stringify(contacts));
-  } catch (err) {
-    console.error('[Bridge] contacts fetch failed:', err);
-    logBridgeEvent('BRIDGE_TERMINAL', { reason: 'contacts_fetch_error', error: err.message });
-    _clearBridgeAttempt();
-    _cleanupBridgeTimers();
-    // Backend unreachable (couldn't even fetch contacts) — hand DIRECTLY to the device-dial floor.
-    // Do NOT call hideBridgeCard() here: it resets to the today/resting screen (re-showing the
-    // OKAY THANKS / I NEED HELP buttons), producing a fail→today→calling double transition that
-    // flashes. The bridge card is already hidden from 'summoning'; startDeviceDial clears any
-    // reactive UI and renders the calling screen in ONE transition. If device dial can't run
-    // (no telephony / empty cache), fall back to Iona escalation.
-    const floored = await startDeviceDial('bridge_floor', true);
-    if (!floored) _onBridgeExhausted();
-    return true;
-  }
-
-  // Guard 2: contacts present
-  if (!contacts || contacts.length === 0) {
-    // No contacts → caller falls through to Iona escalation. Same as the 403 path: do NOT
-    // hideBridgeCard() (it would re-reveal the two buttons and flash before the calling screen) —
-    // the 'summoning' state already hid every card + button.
-    _cleanupBridgeTimers();
-    _clearBridgeAttempt();
-    return false;
-  }
-
-  bridgeAttempt.contacts = contacts;
-  const joined = await _joinConference();
-  if (joined) await _dialCurrentContact();
-  return true;
+  console.log('[Bridge] summonHelp — hands-free PRE-ARMED (armed-don\'t-dial); engine drives reaching');
+  return false;   // ALWAYS false → caller runs the engine (commitEscalation)
 }
 
 // T014 — TwilioVoice event listeners: FR-007 (resolved) / FR-014 (involuntary drop)
@@ -2905,14 +2945,6 @@ function _initBridgeListeners() {
       return;
     }
     if (!bridgeAttempt || bridgeAttempt.state === 'idle') return;
-    // FR-014 reconnect: user re-joined an existing conference — contact is already the anchor.
-    // Clear ring timer and set in_call immediately.
-    if (bridgeAttempt.state === 'reconnecting') {
-      _clearRingTimer();
-      _setBridgeState('in_call');
-      logBridgeEvent('BRIDGE_RECONNECTED', { contact_index: bridgeAttempt.currentIndex });
-      return;
-    }
     // Initial dial: user is in the conference but contact hasn't joined yet.
     // Do NOT clear the ring timer — it fires at 30s to advance on no-answer.
     // in_call is set via bridge_contact_joined FCM push when contact presses a key.
@@ -2965,7 +2997,16 @@ function _initBridgeListeners() {
       // FR-007: deliberate end — contact hung up, attempt is resolved.
       // Capture the connected contact's name NOW — _clearBridgeAttempt() below nulls bridgeAttempt
       // before the terminal card renders, so the name must be read first (empty → generic fallback).
-      const _connectedName = bridgeAttempt.contacts?.[bridgeAttempt.currentIndex]?.name || '';
+      // 009 — under late-join the pre-armed attempt has NO contacts list; the name is the join-confirmed
+      // push's contact_first (stored at connectedContactFirst), falling back to the legacy contacts lookup.
+      const _connectedName = bridgeAttempt.connectedContactFirst
+        || bridgeAttempt.contacts?.[bridgeAttempt.currentIndex]?.name || '';
+      // R-009-33 — a contact-side drop is INDISTINGUISHABLE from a hangup (Twilio reports both as
+      // participant_hung_up), so this completed terminal covers BOTH "we finished" and "the line dropped".
+      // Carry the contact's number onto it (captured before clear, R-009-22 connectedContactPhone) so the
+      // card can offer the single re-reach button — a member cut off mid-call taps it to call them straight back.
+      const _connectedPhone = (bridgeAttempt.connectedContactPhone
+        || bridgeAttempt.contacts?.[bridgeAttempt.currentIndex]?.phone || '').trim();
       logBridgeEvent('BRIDGE_RESOLVED', {
         contact_index: bridgeAttempt.currentIndex,
         contact_phone: bridgeAttempt.contacts?.[bridgeAttempt.currentIndex]?.phone || '',
@@ -2973,26 +3014,18 @@ function _initBridgeListeners() {
       });
       _cleanupBridgeTimers();
       _clearBridgeAttempt();
-      showBridgeTerminalState(undefined, _connectedName);
+      showBridgeTerminalState(undefined, _connectedName, _connectedPhone);
       return;
     }
 
-    // FR-014: involuntary drop of a LIVE (connected) call — reconnect once, then give up (server owns
-    // the reaching sweep; the app never re-drives contacts).
+    // 009 T023 — FR-014 auto-reconnect DELETED. An involuntary drop of a LIVE (connected) call goes
+    // STRAIGHT to the truthful dropped terminal (N5) — no silent re-ring into a call the member can't
+    // hear. The server owns the reaching sweep; the app never re-drives contacts.
     logBridgeEvent('BRIDGE_DROPPED', {
       contact_index: bridgeAttempt.currentIndex,
       error: event.error ?? null,
     });
-    _setBridgeState('reconnecting');
-
-    if (!bridgeAttempt.reconnectAttempted) {
-      bridgeAttempt.reconnectAttempted = true;
-      logBridgeEvent('BRIDGE_RECONNECT', { contact_index: bridgeAttempt.currentIndex });
-      _reconnectCurrentContact();
-    } else {
-      logBridgeEvent('BRIDGE_RECONNECT_FAILED', { contact_index: bridgeAttempt.currentIndex });
-      _bridgeReconnectGaveUp();
-    }
+    _bridgeDroppedTerminal();
   });
 
   TwilioVoice.addListener('error', (event) => {
@@ -3132,6 +3165,9 @@ let _saState = {
                         //   amdSpoken, resolutionSpoken}. Outcomes LAND here regardless of audio phase or
                         //   the ring-stop/outcome ordering — the two-ended discard cure (vault 2026-07-12).
   pendingAttempt: null, // an advance that arrived DURING the handover (applied when the handover ends)
+  joinPhase: null,      // 009 (T013) — null | 'join_pending' | 'joined' | 'join_failed' | 'dropped'. States
+                        //   ONLY a live-call (hands-free accept) episode enters (FR-018e); driven by the
+                        //   bridge_join_* pushes, NOT _saApply. A mode-only extension of the ONE machine.
 };
 let _saEpoch = 0;       // bumps on every ACCEPTED transition; every loop (ring/gap) + queued step self-exits when it changes
 let _saReachAudio = null;   // the loop's currently-playing element (ring OR re-say) — stoppable
@@ -3176,7 +3212,7 @@ function _saStopLoops() {
   try { if (_saReachAudio && !_saReachSpoken) { _saReachAudio.pause(); _saReachAudio = null; } } catch (e) {}
 }
 function _saReset(runToken, runTs) {
-  _saState = { runToken: runToken || null, runTs: runTs || 0, attemptSeq: -1, phase: 'idle', terminal: false, attempts: {}, pendingAttempt: null };
+  _saState = { runToken: runToken || null, runTs: runTs || 0, attemptSeq: -1, phase: 'idle', terminal: false, attempts: {}, pendingAttempt: null, joinPhase: null };
 }
 // R005 — per-attempt records (the attempt-anchored keystone). A record is created at the attempt's dialing
 // and back-filled by any signal that beats it. Outcome merge is IDEMPOTENT, first-wins: presence is never
@@ -3254,6 +3290,12 @@ function _saApply(sig) {
     return _saDiscard(sig.kind, sig, 'stale-attempt');
   }
   if (sig.kind === 'started') return _saOnStarted(sig);
+  // 009 — a live-call (hands-free) episode owns its OWN terminal (the bridge success / dropped / failed-join
+  // card). The engine STILL fires escalation_complete/acknowledged when the joined call ends (it retires the
+  // feature-005 liveness on the server), but the reducer must NOT speak the Signal ack over a conversation the
+  // member actually had. joinPhase is set ONLY for a live-call episode — null for Signal AND for hands-free
+  // EXHAUSTION (no accept), which still speaks its terminal. A genuinely newer run reset joinPhase above.
+  if (sig.kind === 'complete' && _saState.joinPhase) return _saDiscard('complete', sig, 'join-phase-owns-terminal');
   if (sig.kind === 'complete') return _saOnComplete(sig);
   if (sig.phase === 'amd') return _saOnAmd(sig);
   if (sig.phase === 'ended') return _saOnEnded(sig);
@@ -3508,6 +3550,77 @@ function _saOnComplete(sig) {
   })();
 }
 
+// 009 (T013) — join-phase transitions extend the ONE reducer (R-009-6 / FR-018e). Driven by the bridge_join_*
+// pushes (a contact accepted on the hands-free path), NOT _saApply (which owns the escalation_* reaching
+// family). They are sibling transitions on the SAME _saState — no second machine. Each STOPS the device
+// reaching audio; from join_pending on, the audio is the LIVE CALL (the existing server-side "Connecting
+// with {name}" connect line into the member's joining leg — the join announce, R-009-16 — masks the ~2-3s
+// wait, R-009-19), EXCEPT the offline-safe N4/N5 terminal cards, which speak LOCAL clips (T014 set).
+function _saJoinPending() {
+  // A contact accepted → the member is being placed into the live bridge. Stop the device reaching audio.
+  // R-009-31 #14(b) — the "Connecting with {name}" line now rides the MEMBER'S JOIN TwiML as CALL-AUDIO (a
+  // <Say> before <Conference>, server-side) — NOT a local media clip (a media clip either got clipped by the
+  // join audio or, when awaited, delayed the join past the boundary → bridge failed, #14). So the device goes
+  // QUIET at join_pending; the call leg carries the connect line, ~2s inside the N2-end+5s grace.
+  _saState.joinPhase = 'join_pending';
+  _saState.terminal = true;     // reaching is over — no device reaching audio resumes for this run
+  _saState.phase = 'terminal';
+  _saBump();                    // supersede any ring/gap/queued reach step (SYNC, before any await)
+  _saStopLoops();
+  _saTrace('joinPhase → join_pending (reaching stopped; connect line rides the join leg — device quiet)');
+}
+function _saJoined() {
+  // Positive join confirmation — the conversation IS the audio. Silence device-side.
+  _saState.joinPhase = 'joined';
+  _saBump();
+  _saStopLoops();
+  _saTrace('joinPhase → joined (live conversation — device silent)');
+}
+async function _saJoinFailed(contactFirst) {
+  // 8s boundary closed the held contact before the member joined. Speak the local failed_join clip (N4,
+  // name-bearing, offline-safe); the N4 CARD is rendered by the push handler (T015).
+  _saState.joinPhase = 'join_failed';
+  const e = _saBump();
+  _saStopLoops();
+  // R-009-32 ④ (generalized #13) — this terminal follows a live/comm-audio context (Story-4 speaker route +,
+  // in the misclassified-late case, a call the device briefly touched). Reset the route/mode + restore volume
+  // BEFORE the N4 clip so it lands on the media route, same ordering as the N5 dropped clip.
+  await _teardownCallAudioNow();
+  await _saClipBoundary();
+  if (e !== _saEpoch) return;
+  const src = await _saJoinClipSrc('failed_join', contactFirst);
+  if (src) await _saPlayOnce(src);
+  else console.log('[SignalAudio] CLIP MISS failed_join — N4 line falls silent (cache populates at T014/T022)');
+}
+async function _saDropped(contactFirst) {
+  // A live joined call dropped (008 territory, post-`joined` only). Speak the local dropped clip (N5,
+  // name-bearing, offline-safe); the R-008-5 CARD is rendered by the drop handler (T016).
+  _saState.joinPhase = 'dropped';
+  const e = _saBump();
+  _saStopLoops();
+  // R-009-31 #13 — the drop just tore a LIVE call down; reset the audio route/mode + restore volume BEFORE the
+  // clip so the N5 line plays out the media route (not the dead voice-call path). Ordered: teardown → clip.
+  await _teardownCallAudioNow();
+  await _saClipBoundary();
+  if (e !== _saEpoch) return;
+  const src = await _saJoinClipSrc('dropped', contactFirst);
+  if (src) await _saPlayOnce(src);
+  else console.log('[SignalAudio] CLIP MISS dropped — N5 line falls silent (cache populates at T014/T022)');
+}
+async function _saJoinClipSrc(kind, contactFirst) {
+  // kind: 'failed_join' (N4) | 'dropped' (N5). Map the contact's first name → that contact's cached clip
+  // (same manifest lookup as the ack terminal). Offline-safe: reads Preferences, zero fetch (SC-006).
+  if (!contactFirst) return null;
+  try {
+    const raw = await getPreference(SA_MANIFEST_KEY);
+    const man = raw ? JSON.parse(raw) : null;
+    const first = String(contactFirst).trim().split(/\s+/)[0].toLowerCase();
+    const hit = man && man.contacts && man.contacts.find((c) => (c.first || '').trim().toLowerCase() === first);
+    if (hit) return await _saCachedSrc(hit.index + '_' + kind);
+  } catch (e) {}
+  return null;
+}
+
 function _saPlayOnce(src) {
   // Play one QUEUE clip to completion (handover / lead line / terminal). Best-effort: resolves on
   // end/error/exception/timeout, NEVER rejects. Held in _saCurrent for bookkeeping. Every queue clip is
@@ -3603,6 +3716,16 @@ async function _saStartGapBed(epoch, opts) {
       _saTrace('bed tick: L9 (once)');
       await _saPlayReach(SA_STATIC_BASE + 'gap.mp3', epoch, true); // L9 — emergency fallback, SPOKEN (atomic), capped at ONE play
       l9Spoken = true;
+    } else if (connectHold && !outcomeSpoken) {
+      // R-009-28 (owner overturn of R1 silence) — the connect gap is an UNRESOLVED ATTEMPT, not line-state:
+      // CONTINUE the settled attempt-line ("Trying to reach {name}") + fake-ring cadence — EXISTING clips,
+      // EXISTING ring, NOTHING NEW — until the outcome lands (silence read as the system dying at the member's
+      // most anxious moment). L9 stays PROHIBITED here; the per-tick upgrade above still yields to amd→L17 /
+      // any outcome the instant it lands, and a fast accept (join_pending) supersedes cleanly.
+      _saTrace('bed tick: connectHold reach (attempt-line + ring)');
+      const _chSrc = (rec && rec.index != null) ? await _saCachedSrc(rec.index + '_attempt') : null;
+      await _saPlayReach(SA_STATIC_BASE + 'uk_ring.wav', epoch);                  // fake-ring bed (preemptible)
+      if (epoch === _saEpoch && _chSrc) await _saPlayReach(_chSrc, epoch, true);  // re-say "Trying to reach {name}" (atomic)
     } else {
       _saTrace('bed tick: silence' + (connectHold ? ' (connectHold)' : outcomeSpoken ? ' (post-outcome)' : ''));
     }
@@ -3613,11 +3736,6 @@ async function _saStartGapBed(epoch, opts) {
 async function _saCachedSrc(key) {
   try { const b64 = await getPreference(SA_CLIP_PREFIX + key); return b64 ? ('data:audio/mpeg;base64,' + b64) : null; }
   catch (e) { return null; }
-}
-function _saIsSignal() {
-  // escalation_* is Signal-only by construction (bridge uses bridge_*). Belt-and-braces: never play for a
-  // confirmed hands-free member. _escalationMode is a possibly-stale local cache — server is authoritative.
-  return !(_hasHandsFree === true && _escalationMode === 'handsfree');
 }
 function _saExhaustedClip() {
   if (_saSummonSource === 'physical_button') return 'exhausted_button.mp3';
@@ -3641,16 +3759,26 @@ async function _saAckSrc(contactName) {
 //     arrives as a string) and hands it to the single reducer _saApply, which validates identity and owns every
 //     loop. NO lifecycle logic lives here — that is the whole point of the state machine. --------------------
 function _saPause(ms) { return new Promise((r) => setTimeout(r, ms)); }
+// R-009-29 Directive A — the ONE shared hold-then-card settle. A uniform 2000ms hold after the final audio,
+// BEFORE every terminal card (success / exhausted / N4 failed-join / N5 dropped), so the screen always lands
+// AFTER the audio and never overlaps the outcome/terminal clip. LIVE landings only — cold-open/resume restores
+// render the card straight (the terminal already settled).
+const SETTLE_BEFORE_CARD_MS = 2000;
+function _saSettleBeforeCard() { return _saPause(SETTLE_BEFORE_CARD_MS); }
 function _saParseTs(data) { return parseInt((data && data.run_ts) || '0', 10) || 0; }
 function signalAudioStarted(data) {
-  escalationScreenReset((data && data.run_token) || null);   // 007 screen mirror — EVERYONE (before the Signal-only audio gate)
-  if (!_saIsSignal()) return;
+  escalationScreenReset((data && data.run_token) || null);   // 007 screen mirror — EVERYONE
+  // 009 (R-009-20/21) ONE reaching engine: the reaching phase is now mode-BLIND. The engine drives reaching
+  // for BOTH modes (escalation_* emitted for hands-free too), so the reducer runs unconditionally here — the
+  // hands-free member hears the SAME device-side reaching narration as Signal (SC-002/SC-009). Mode gates
+  // exactly ONE thing, server-side: the contact's press-1 consequence. (The clip-CACHE exclusion stays until
+  // Phase 6 / T022 — reaching clips for hands-free arrive when that lands; harness/sa_sim unaffected.)
   _saApply({ kind: 'started', runToken: (data && data.run_token) || null, runTs: _saParseTs(data) });
 }
 function signalAudioAdvance(data) {
   if (!data) return;
   escalationScreenAdvance(data);   // 007 screen mirror — EVERYONE (channel-honest per-contact chips)
-  if (!_saIsSignal()) return;      // audio — Signal-only (FR-016)
+  // 009 (R-009-20/21) — mode-blind reaching: the reducer runs for BOTH modes (see signalAudioStarted).
   const index = parseInt(data.contact_index ?? '-1', 10);
   const sweep = parseInt(data.sweep ?? '1', 10);
   // attempt_seq is stamped by the ONE backend builder (pwa_sender.build_escalation_advance_payload). Fall back
@@ -3676,7 +3804,11 @@ function signalAudioAdvance(data) {
 }
 function signalAudioComplete(data) {
   escalationScreenComplete(data);   // 007 screen mirror — EVERYONE (resolve the acknowledged contact to "Reached")
-  if (!_saIsSignal()) return;
+  // 009 (R-009-20/21) — mode-blind terminal: the reducer runs for BOTH modes. A hands-free member only ever
+  // receives escalation_complete with outcome 'exhausted' (the accept path holds → bridge_join_confirmed, it
+  // never fires escalation_complete/acknowledged) — so the device speaks the exhausted terminal for both
+  // modes (T021 deletes the server-side member exhausted <Say>). An acknowledged terminal reaches only a
+  // Signal-floor member (lapsed entitlement acked at the press-1 fork), where the ack card is correct.
   _saApply({
     kind: 'complete',
     runToken: (data && data.run_token) || null,
@@ -3689,7 +3821,9 @@ function signalAudioComplete(data) {
 // --- cache reconcile (contact-save / app-start / foreground) — NEVER at escalation time ---
 async function refreshSignalAudioCache({ throttleMs = 0 } = {}) {
   if (throttleMs && Date.now() - _saLastRefresh < throttleMs) return;
-  if (!_saIsSignal()) return;                       // hands-free members don't need Signal clips
+  // 009 T022 (FR-018d) — the hands-free clip-cache exclusion is DELETED: ONE cache pipeline for BOTH modes.
+  // Under late-join a hands-free member hears the SAME device-side reaching + N4/N5 clips, so they must cache
+  // them exactly like Signal. (The old mode-gate helper is removed — no other caller after the T012 gates.)
   let memberAirtableId;
   try { memberAirtableId = await getPreference('member_airtable_id'); } catch (e) { return; }
   if (!memberAirtableId) return;
@@ -3706,6 +3840,15 @@ async function refreshSignalAudioCache({ throttleMs = 0 } = {}) {
     if (!res.ok) { console.warn('[SignalAudio] cache refresh HTTP', res.status); return; }
     const data = await res.json();
     if (!data || !Array.isArray(data.contacts)) return;
+    // R-009-27 FIX E — manifest-diff re-cache: signature = deck version + the contact set (index:first). If it
+    // matches the cached manifest, NOTHING changed → skip the clip re-writes (keeps foreground reconciles
+    // cheap). Any real change — a contact added / removed / renamed, or a deck bump — differs → re-cache. This
+    // is what picks up a contact edited outside the app (website / Airtable) on the next reconcile.
+    const _sig = String(data.version) + '|' + data.contacts.map((c) => c.index + ':' + (c.first || '')).join(',');
+    try {
+      const _cached = JSON.parse((await getPreference(SA_MANIFEST_KEY)) || '{}');
+      if (_cached && _cached.sig === _sig) { console.log('[SignalAudio] cache current (manifest unchanged) — skip'); return; }
+    } catch (e) { /* no / bad cached manifest → fall through and re-cache */ }
     for (const c of data.contacts) {
       if (c.attempt) await setPreference(SA_CLIP_PREFIX + c.index + '_attempt', c.attempt);
       if (c.ack) await setPreference(SA_CLIP_PREFIX + c.index + '_ack', c.ack);
@@ -3715,13 +3858,18 @@ async function refreshSignalAudioCache({ throttleMs = 0 } = {}) {
       if (c.trying_again) await setPreference(SA_CLIP_PREFIX + c.index + '_trying_again', c.trying_again);
       if (c.amd) await setPreference(SA_CLIP_PREFIX + c.index + '_amd', c.amd);
       if (c.vm_hold) await setPreference(SA_CLIP_PREFIX + c.index + '_vm_hold', c.vm_hold);   // L17 post-AMD hold (deck amendment 13 Jul)
+      if (c.connect) await setPreference(SA_CLIP_PREFIX + c.index + '_connect', c.connect);   // R-009-29 B — local pre-join "Connecting with {name}" announce
+      // 009 (T014) — the two join-phase terminal cards, name-bearing, played offline (SC-006). Keyed like
+      // every other clip: signal_clip_<i>_{failed_join|dropped}. _saJoinClipSrc reads them at play time.
+      if (c.failed_join) await setPreference(SA_CLIP_PREFIX + c.index + '_failed_join', c.failed_join);   // N4
+      if (c.dropped) await setPreference(SA_CLIP_PREFIX + c.index + '_dropped', c.dropped);               // N5
       for (const oc of ['voicemail', 'sms_sent', 'declined', 'no_answer']) {
         const b = c['outcome_' + oc];
         if (b) await setPreference(SA_CLIP_PREFIX + c.index + '_outcome_' + oc, b);
       }
     }
     const inv = data.contacts.map((c) => ({ index: c.index, first: c.first || '' }));
-    await setPreference(SA_MANIFEST_KEY, JSON.stringify({ version: data.version, ts: Date.now(), contacts: inv }));
+    await setPreference(SA_MANIFEST_KEY, JSON.stringify({ version: data.version, sig: _sig, ts: Date.now(), contacts: inv }));  // R-009-27 FIX E — store the diff signature
     console.log('[SignalAudio] cache updated — v' + data.version, inv.length, 'contacts');
   } catch (err) {
     console.warn('[SignalAudio] cache refresh failed (offline?) — keeping existing cache:', err);
@@ -5882,7 +6030,7 @@ function _isVisible(id) {
 async function _alarmOwnsScreen() {
   if (_summonCountdownActive) return true;                 // cancel window
   if (_deviceDial != null) return true;                    // device-dial calling
-  if (bridgeAttempt && ['dialing', 'summoning', 'reconnecting', 'in_call']
+  if (bridgeAttempt && ['dialing', 'summoning', 'in_call']
         .includes(bridgeAttempt.state)) return true;       // live bridge
   try {
     if ((await getPreference('escalation_state')) === 'active') return true;

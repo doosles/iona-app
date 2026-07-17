@@ -1532,6 +1532,25 @@ body.light .btn-okay.btn--dim {
   color: var(--text-muted);
   line-height: 1.5;
 }
+/* 009 (R-009-22) — N4 failed-join card PRIMARY action: a device-driven "Call {name}" to the accepting
+   contact (a real carrier call). Sits inside the terminal card, above the shell's I-NEED-HELP / Return
+   floor. N4-only (hidden for every other terminal). */
+.btn-call-contact {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  background: #25C9BA;
+  color: #06201d;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.btn-call-contact:active { filter: brightness(0.94); }
+.btn-call-contact.hidden { display: none; }
 /* Bridge SUCCESS terminal — two registers. Connection lead + name are Iona's VOICE: bound to the
    US8 message font (--msg-font-iona) so they render cursive in Handwritten and plain Hanken in
    Easy-read, matching her daily messages. The instruction is functional safety text: ALWAYS plain,

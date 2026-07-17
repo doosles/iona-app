@@ -34,6 +34,8 @@ _saReachLoop = async () => { LOG.push('ringloop'); };
 _saPause = async (ms) => { await new Promise(r => setTimeout(r, 2)); };
 _saCachedSrc = async (k) => { CACHE_HITS.push(k); return 'clip:' + k; };
 _saAckSrc = async (n) => 'ackclip:' + n;
+_saJoinClipSrc = async (kind, name) => 'joinclip:' + kind + ':' + name;   // 009 T013 — join-phase card clip (stub)
+_teardownCallAudioNow = async () => { LOG.push('teardown'); };   // 009 R-009-31 #13 — native drop-time audio teardown (stub); defined above the slice in app.js
 _saExhaustedClip = () => 'exhausted_both.mp3';
 global.__apply = _saApply;
 global.__state = () => _saState;
@@ -41,6 +43,10 @@ global.__reset = _saReset;
 global.__bump = _saBump;
 global.__epoch = () => _saEpoch;
 global.__setSpoken = (p) => { _saSpokenDone = p; };   // atomic-clip boundary is eval-lexical — stubs register via this
+global.__joinPending = _saJoinPending;   // 009 T013 — the bridge_join_* pushes drive these (not _saApply)
+global.__joined = _saJoined;
+global.__joinFailed = _saJoinFailed;
+global.__dropped = _saDropped;
 `);
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -214,20 +220,22 @@ function reset() { LOG.length = 0; CACHE_HITS.length = 0; __reset(null, 0); }
   _saCachedSrc = savedCached;
   check('P3 post-AMD clip-miss: silence (no L9, no L17)', !LOG.some(l => l.startsWith('reach:')));
 
-  // ── N1: connectHold bed — silent pre-amd, upgrades to L17 MID-BED when amdSpoken lands (R1 fix) ──
+  // ── N1: connectHold bed — R-009-28 (owner overturn of R1 silence): the connect gap CONTINUES the settled
+  //        attempt-line ("Trying to reach {name}") + fake-ring cadence pre-amd (NOTHING NEW, NOT dead silence),
+  //        still NO L9 ever; upgrades to L17 MID-BED when amdSpoken lands (R1 fix survives) ──
   reset();
   __state().attemptSeq = 100;
   __state().attempts[100] = { index: 1, sweep: 1, channel: 'call', outcome: null, amdSpoken: false, resolutionSpoken: false };
   LOG.length = 0;
   e = __bump();
   const bedN = __realGapBed(e, { connectHold: true });
-  await sleep(30);                                   // several silent ticks with amd NOT yet landed
+  await sleep(30);                                   // several reach ticks (ring + attempt-line), amd NOT yet landed
   const preFlip = LOG.filter(l => l.startsWith('reach:')).length;
   __state().attempts[100].amdSpoken = true;          // the late amd signal lands mid-bed
   await sleep(40);
   __bump();
   await bedN;
-  check('N1 connectHold: NO L9 ever, silence pre-amd', preFlip === 0 && !LOG.some(l => l.includes('gap.mp3')));
+  check('N1 connectHold R-009-28: attempt-line+ring (not silence), NO L9 pre-amd', preFlip > 0 && LOG.some(l => l === 'reach:static:uk_ring.wav') && LOG.some(l => l === 'reach:clip:1_attempt') && !LOG.some(l => l.includes('gap.mp3')));
   check('N1 bed upgrades to L17 mid-bed on amd landing', LOG.some(l => l === 'reach:clip:1_vm_hold'));
 
   // ── N2: full reducer flow — ring-stop first, amd LATE (the R1 heard sequence can't recur) ──
@@ -367,6 +375,108 @@ function reset() { LOG.length = 0; CACHE_HITS.length = 0; __reset(null, 0); }
   check('B1 straggler ended never repaints the settled chip (trace case)', CHIP[0] === 'reached');
   escalationScreenAdvance({ run_token: 'R2', contact_index: '0', attempt_seq: '100', phase: 'dialing', channel: 'call' });
   check('B2 a NEW run unfreezes the mirror', CHIP[0] === 'active');
+
+  // ═══ 009 (T013) JOIN-PHASE TRANSITIONS — states ONLY a live-call (hands-free accept) episode enters,
+  // driven by the bridge_join_* pushes (NOT _saApply). Mode-only extension of the ONE machine (FR-018e). ═══
+
+  // ── J1: join_pending → joined. A contact accepted mid-reaching: reaching audio STOPS, reducer marks the
+  // live-call phase; join-confirmed lands → joined (device silent — the conversation is the audio). ──
+  reset();
+  __apply({ kind: 'started', runToken: 'tokA', runTs: 1000 }); await sleep(20);
+  adv(100, 'dialing'); await sleep(20);
+  LOG.length = 0;
+  __joinPending();
+  check('J1 join_pending: reducer marks the live-call phase + stops reaching (terminal-for-reaching)',
+    __state().joinPhase === 'join_pending' && __state().terminal === true);
+  __joined();
+  check('J1 joined: phase settles to joined, device stays silent (no clip played)',
+    __state().joinPhase === 'joined' && !LOG.some(l => l.startsWith('play:') || l.startsWith('reach:')));
+
+  // ── J2: join_pending → join_failed. The 8s boundary closed the held contact before the member joined →
+  // speak the local N4 failed_join clip (name-bearing, offline-safe). ──
+  reset();
+  __apply({ kind: 'started', runToken: 'tokA', runTs: 1000 }); await sleep(20);
+  adv(100, 'dialing'); await sleep(20);
+  __joinPending();
+  LOG.length = 0;
+  await __joinFailed('John'); await sleep(20);
+  check('J2 join_failed: phase set + N4 line spoken locally (name-bearing)',
+    __state().joinPhase === 'join_failed' && LOG.some(l => l === 'play:joinclip:failed_join:John'));
+  // R-009-32 ④ (generalized #13) — the drop-time audio teardown now precedes the N4 clip too (parity with N5),
+  // so the N4 line lands on a clean media route.
+  check('J2 ④: audio teardown precedes the N4 clip',
+    LOG.indexOf('teardown') >= 0 && LOG.indexOf('teardown') < LOG.indexOf('play:joinclip:failed_join:John'));
+
+  // ── J3: joined → dropped. A live joined call dropped (008 territory, post-`joined`) → speak the local N5
+  // dropped clip (name-bearing, offline-safe). ──
+  reset();
+  __apply({ kind: 'started', runToken: 'tokA', runTs: 1000 }); await sleep(20);
+  adv(100, 'dialing'); await sleep(20);
+  __joinPending(); __joined();
+  LOG.length = 0;
+  await __dropped('John'); await sleep(20);
+  check('J3 dropped (post-joined): phase set + N5 line spoken locally (name-bearing)',
+    __state().joinPhase === 'dropped' && LOG.some(l => l === 'play:joinclip:dropped:John'));
+  // R-009-31 #13 — the drop-time audio teardown (route/mode reset + volume restore) runs BEFORE the N5 clip,
+  // so the line lands on a clean media route (owner: "no audio at all" on a mid-call drop). Assert ordering.
+  check('J3 #13: drop-time audio teardown precedes the N5 clip',
+    LOG.indexOf('teardown') >= 0 && LOG.indexOf('teardown') < LOG.indexOf('play:joinclip:dropped:John'));
+
+  // ── J4: a live-call episode ABSORBS a trailing escalation_complete. The engine fires it when the joined
+  // call ends (to retire the feature-005 liveness), but the bridge card owns the terminal — the reducer must
+  // NOT speak the Signal ack over a conversation the member actually had. Control: a NO-join escalation
+  // (joinPhase null — Signal, or hands-free exhaustion) still speaks its terminal. ──
+  reset();
+  __apply({ kind: 'started', runToken: 'tokA', runTs: 1000 }); await sleep(20);
+  adv(100, 'dialing'); await sleep(20);
+  __joinPending(); __joined();
+  LOG.length = 0;
+  __apply({ kind: 'complete', runToken: 'tokA', runTs: 1000, outcome: 'acknowledged', contactName: 'John' });
+  await sleep(20);
+  check('J4 joined episode absorbs trailing escalation_complete (no Signal ack over a real conversation)',
+    !LOG.some(l => l.startsWith('play:ackclip') || l.includes('ack_generic')));
+  reset();
+  __apply({ kind: 'started', runToken: 'tokA', runTs: 1000 }); await sleep(20);
+  adv(100, 'dialing'); await sleep(20);
+  __apply({ kind: 'complete', runToken: 'tokA', runTs: 1000, outcome: 'acknowledged', contactName: 'John' });
+  await sleep(20);
+  check('J4 control: a NO-join escalation still speaks the ack terminal (joinPhase null)',
+    LOG.some(l => l === 'play:ackclip:John'));
+
+  // R-009-27 addendum — no-raw-labels-on-surfaces (the #4 honesty law, grep-enforced). Wire/push vocabulary
+  // (join_failed / acknowledged / exhausted / no_answer / sms_sent) must NEVER be set as user-facing surface
+  // text — surfaces always MAP raw labels to human copy. Grep the app.js source: no textContent/innerText/
+  // setMsg assignment may embed a raw-label LITERAL. (join_failed is D's new wire label — reads true in traces,
+  // must never reach a surface.)
+  {
+    const RAW = ['join_failed', 'acknowledged', 'exhausted', 'no_answer', 'sms_sent'];
+    const leak = src.split('\n')
+      .filter((l) => /\.(textContent|innerText)\s*=|setMsg\(/.test(l))
+      .find((l) => RAW.some((r) => l.includes("'" + r + "'") || l.includes('"' + r + '"')));
+    check('no raw wire-labels rendered on member surfaces (#4 law, grep)', !leak, leak ? leak.trim() : '');
+  }
+
+  // R-009-34 FIX H (app belt) — join-confirmation watchdog wiring (grep-enforced; the 10s timer + DOM render
+  // are out of the reducer slice, so assert the wiring is intact): the belt is ARMED after _joinConference in
+  // the trigger handler, CLEARED in both the confirmed and failed handlers, and its timeout renders N4
+  // (_showFailedJoinTerminal) ONLY when the join is still pending (never overrides a real outcome).
+  {
+    const armed   = /_joinConference\(_jtConf\);\s*\n\s*_armJoinConfirmTimeout/.test(src);
+    const fnBody  = (src.match(/function _armJoinConfirmTimeout[\s\S]*?\n}/) || [''])[0];
+    const guarded = /_saState\.joinPhase\s*!==\s*'join_pending'/.test(fnBody) && /_showFailedJoinTerminal/.test(fnBody);
+    const cleared = (src.match(/_clearJoinConfirmTimeout\(\)/g) || []).length >= 3;   // confirmed + failed + cleanup
+    check('FIX H belt: join-confirm watchdog armed-on-join, guarded N4 render, cleared on resolve (grep)',
+      armed && guarded && cleared);
+  }
+
+  // R-009-35 A — belt-never-races: the belt must be a TRUE last resort, timed comfortably PAST the server's
+  // ~12s with-phone failed-join (8s admit-verify watchdog + FCM). At 10s it front-ran the primary and won with
+  // worse data (buttonless N4) + a destructive early hangup (R-009-34 ③). Assert the constant is ≥ 18s.
+  {
+    const m = src.match(/JOIN_CONFIRM_TIMEOUT_MS\s*=\s*(\d+)/);
+    const ms = m ? parseInt(m[1], 10) : 0;
+    check('R-009-35 A belt-never-races: JOIN_CONFIRM_TIMEOUT_MS ≥ 18000 (server primary always wins)', ms >= 18000);
+  }
 
   console.log(fails ? `\n${fails} FAILURE(S)` : '\nALL PASS');
   process.exit(fails ? 1 : 0);

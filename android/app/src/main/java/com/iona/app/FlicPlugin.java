@@ -566,6 +566,7 @@ public class FlicPlugin extends Plugin {
     private static void fireSummonFullScreenIntent() {
         Context ctx = appContext;
         if (ctx == null) return;  // headless re-arm always sets appContext before a press can arrive
+        TwilioVoicePlugin.applyMaxVolume(ctx);   // 009 Story 4 (R-009-8/T018) — cold Flic press: loud from word one, before the alarm sounds
         Intent launch = new Intent(ctx, MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra("flic_summon", true);
@@ -610,6 +611,7 @@ public class FlicPlugin extends Plugin {
         because the FCM service can run in a cold process where {@link #appContext} was never captured. */
     static void fireEscalationAlarmFullScreenIntent(Context ctx) {
         if (ctx == null) return;
+        TwilioVoicePlugin.applyMaxVolume(ctx);   // 009 Story 4 (R-009-8/T018) — cold-killed proactive escalation: loud from word one
         Intent launch = new Intent(ctx, MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra("escalation_alarm", true);

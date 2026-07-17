@@ -330,4 +330,81 @@ public class TwilioVoicePlugin extends Plugin {
             audio.setSpeakerphoneOn(false);
         }
     }
+
+    // ── 009 Story 4 (R-009-8 / T017-T019) — Oran loud from the first word. Volume-max is the FIRST act of the
+    //    summon press (BEFORE the siren + cancel window), mode-BLIND (it lives in the shared reaching phase — a
+    //    mode gate here would violate FR-018a). Both Android streams: MUSIC (device clips + siren) and
+    //    VOICE_CALL (the bridge). The PRIOR levels are captured ONCE per episode and restored at the terminal
+    //    (R-009-5 — a maxed volume left behind ambushes someone at midnight). Static capture so the cold-wake
+    //    FSI path (T018) shares the same once-only capture/restore even when the plugin isn't foreground. ──
+    private static int savedMusicVol = -1;
+    private static int savedVoiceVol = -1;
+
+    public static void applyMaxVolume(Context ctx) {
+        try {
+            AudioManager audio = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) return;
+            // Capture the prior levels ONCE per episode — a second press, or a cold-wake after an in-app press,
+            // must never overwrite the real prior with the already-maxed value.
+            if (savedMusicVol < 0) savedMusicVol = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+            if (savedVoiceVol < 0) savedVoiceVol = audio.getStreamVolume(AudioManager.STREAM_VOICE_CALL);
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0);
+            audio.setStreamVolume(AudioManager.STREAM_VOICE_CALL, audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL), 0);
+            Log.d("TwilioVoice", "applyMaxVolume — music/voice maxed (prior music=" + savedMusicVol + " voice=" + savedVoiceVol + ")");
+        } catch (Exception e) {
+            Log.w("TwilioVoice", "applyMaxVolume failed (non-fatal): " + e.getMessage());
+        }
+    }
+
+    public static void applyRestoreVolume(Context ctx) {
+        try {
+            AudioManager audio = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) return;
+            if (savedMusicVol >= 0) audio.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicVol, 0);
+            if (savedVoiceVol >= 0) audio.setStreamVolume(AudioManager.STREAM_VOICE_CALL, savedVoiceVol, 0);
+            Log.d("TwilioVoice", "applyRestoreVolume — restored music=" + savedMusicVol + " voice=" + savedVoiceVol);
+            savedMusicVol = -1;   // episode closed — the next press captures a fresh prior
+            savedVoiceVol = -1;
+        } catch (Exception e) {
+            Log.w("TwilioVoice", "applyRestoreVolume failed (non-fatal): " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void maxVolume(PluginCall call) {
+        applyMaxVolume(getContext());
+        // R-009-8: "volume to max + speaker route." Best-effort speaker route (harmless no-op pre-call).
+        try { routeToSpeaker(); } catch (Exception e) { Log.w("TwilioVoice", "maxVolume speaker route failed: " + e.getMessage()); }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void restoreVolume(PluginCall call) {
+        applyRestoreVolume(getContext());
+        call.resolve();
+    }
+
+    // ── 009 (R-009-31 #13) — drop-time audio teardown. When a LIVE joined bridge call drops involuntarily,
+    //    the terminal (N5) clip is a USAGE_MEDIA WebView <Audio>. If it fires while the AudioManager is still
+    //    in MODE_IN_COMMUNICATION with the call's communication device held (speaker route from routeToSpeaker),
+    //    the media clip is routed into the dying voice-call path and is inaudible (owner: "no audio at all" on a
+    //    mid-call drop). Twilio's onDisconnected does releaseAudio() but never resets the MODE, and the JS clip
+    //    can race ahead of it. This gives JS an explicit, ordered teardown to call BEFORE it speaks the N5 line:
+    //    abandon the comm route, drop the mode back to NORMAL (media routing restored), and restore the Story-4
+    //    volume — one native call, then JS plays the clip on a clean media route. Best-effort, never rejects. ──
+    @PluginMethod
+    public void teardownCallAudio(PluginCall call) {
+        try {
+            releaseAudio();   // clearCommunicationDevice() / setSpeakerphoneOn(false) — drop the call's speaker route
+            AudioManager audio = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+            if (audio != null && audio.getMode() != AudioManager.MODE_NORMAL) {
+                audio.setMode(AudioManager.MODE_NORMAL);   // back to a media-routing mode so a USAGE_MEDIA clip plays out the speaker
+                Log.d("TwilioVoice", "teardownCallAudio — mode → NORMAL, comm route released");
+            }
+        } catch (Exception e) {
+            Log.w("TwilioVoice", "teardownCallAudio route/mode reset failed (non-fatal): " + e.getMessage());
+        }
+        applyRestoreVolume(getContext());   // R-009-5 Story-4 restore, folded into the drop-time teardown
+        call.resolve();
+    }
 }
