@@ -136,9 +136,36 @@ function playAlarmSiren() {
   });
 }
 
-function playVoiceMessage() {
-  // v2 — replace with: new Audio('https://static.iona.today/audio/alert-message.mp3').play()
-  // using a pre-recorded Amy Neural file. Also make "10 seconds" dynamic based on configured cancel window.
+// Feature 010 / Amendment 9 addendum — the EXISTING pre-Iona attention tone, made awaitable so the
+// sequential run (siren → tone → clip → countdown) can order it. playArrivalPing() is fire-and-forget
+// WebAudio (3 notes, last stops at ~1.02s); no new asset is created — this only awaits the existing one.
+const ATTENTION_TONE_MS = 1100;
+function playAttentionTone() {
+  return new Promise((resolve) => {
+    try { playArrivalPing(); } catch (e) {}
+    setTimeout(resolve, ATTENTION_TONE_MS);
+  });
+}
+
+// Feature 010 / Amendment 8 — the activation prompt as a pre-recorded Oran (Polly Arthur-Neural) clip,
+// one per ladder step (5–60 by 5). Clip text is the byte-exact Amendment-7 template with {n} rendered in.
+// Selected by the member's configured window; clamped to the ladder so an out-of-range value can never
+// request a missing asset (falls back to the ruled default 10).
+function _activationClipFor(seconds) {
+  let n = Math.round((Number(seconds) || _CW_DEFAULT) / _CW_STEP) * _CW_STEP;
+  n = Math.min(_CW_MAX, Math.max(_CW_MIN, n));
+  return SA_STATIC_BASE + 'activation_' + String(n).padStart(2, '0') + '.mp3';
+}
+
+// RETIRED from member-facing use (Amendment 8). The Web-Speech path never played on Android WebView:
+// speechSynthesis.getVoices() populates asynchronously, so the voices-ready guard below trips on the
+// first synchronous ask every time and the function returns before speak() is ever reached (logcat
+// showed zero TTS activity). All member-facing lines are now pre-recorded Polly clips on the
+// _saPlayOnce pipeline. Kept only as a non-member-facing reference; do not wire it to new callers.
+function playVoiceMessage(windowSeconds = ALARM_CANCEL_WINDOW_SECONDS) {
+  // v2 — replace with a pre-recorded Amy Neural file (new Audio('https://static.iona.today/audio/alert-message.mp3')).
+  // Feature 010: the cancel window is member-configured (5–60s); windowSeconds is interpolated below (FR-010).
+  // Spoken wording remains owner-reserved (copy session) — only the number is made dynamic here.
   return new Promise((resolve) => {
     const ctx = getAudioContext();
     const fallback = () => {
@@ -160,7 +187,7 @@ function playVoiceMessage() {
       fallback(); return;
     }
     const msg = new SpeechSynthesisUtterance(
-      "This is Iona. You have pressed the HELP button. If you do not cancel within 10 seconds, we will attempt to call your contacts to let them know you are in need of assistance."
+      `This is Iona. You have pressed the HELP button. If you do not cancel within ${windowSeconds} seconds, we will attempt to call your contacts to let them know you are in need of assistance.`
     );
     msg.rate = 0.95;
     msg.pitch = 1.0;
@@ -172,33 +199,15 @@ function playVoiceMessage() {
   });
 }
 
-// Bridge hard-failure fallthrough message — plays instead of regular voice message
+// Bridge hard-failure fallthrough line. Amendment 9 condition 3 moved it off TTS onto the clip pipeline
+// (it had never played for TWO reasons: the Android-WebView voices-guard, AND no caller at all).
+// DELIBERATELY UNCALLED — captain ruling 2026-07-18: the clip's wording and voice are owner-reserved to
+// the copy session and no placeholder debuts in a crisis moment. The asset is rendered and ready
+// (bridge_fallthrough.mp3, placeholder wording carried verbatim from the old TTS string); wire this at the
+// fallthrough site in _startIonaEscalation ONLY once the copy session rules. Until then the path stays
+// silent exactly as it is today — no behaviour change.
 function _playBridgeFallthroughMessage() {
-  return new Promise((resolve) => {
-    const ctx = getAudioContext();
-    const fallback = () => {
-      [440, 660].forEach((freq, i) => {
-        const osc = ctx.createOscillator(); const g = ctx.createGain();
-        osc.connect(g); g.connect(ctx.destination);
-        osc.type = 'sine';
-        const t = ctx.currentTime + i * 0.35;
-        osc.frequency.setValueAtTime(freq, t);
-        g.gain.setValueAtTime(0.4, t);
-        g.gain.linearRampToValueAtTime(0, t + 0.25);
-        osc.start(t); osc.stop(t + 0.25);
-      });
-      setTimeout(resolve, 800);
-    };
-    if (!window.speechSynthesis || speechSynthesis.getVoices().length === 0) { fallback(); return; }
-    const msg = new SpeechSynthesisUtterance(
-      "Sorry, I couldn't connect you just now. I'm going to call your contacts directly."
-    );
-    msg.rate = 0.9; msg.pitch = 1.0; msg.volume = 1.0;
-    const t = setTimeout(() => { speechSynthesis.cancel(); fallback(); }, 8000);
-    msg.onend = () => { clearTimeout(t); resolve(); };
-    msg.onerror = () => { clearTimeout(t); fallback(); };
-    speechSynthesis.speak(msg);
-  });
+  return _saPlayOnce(SA_STATIC_BASE + 'bridge_fallthrough.mp3');
 }
 
 function playPulseTone() {
@@ -584,14 +593,24 @@ function initPushListeners() {
     if (type === 'scheduled_contact' || type === 'reminder_1' || type === 'reminder_2') {
       showTodayMessage(notification.body ?? notification.notification?.body ?? null, notification.data);
     } else if (type === 'escalation_started') {
-      // Proactive escalation entry. Mark the escalation active — mirrors the reactive commitEscalation
-      // path — so handleEscalationComplete's `savedState === 'active'` gate passes and the terminal card
-      // renders for a PROACTIVE escalation too (fixes the "stuck on Calling your contacts" gap).
-      setPreference('escalation_state', 'active');
-      setPreference('escalation_state_ts', String(Date.now()));
-      showEscalationActiveState();
-      _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
-      signalAudioStarted(notification.data);   // feature 006 — begin the Signal audio replica (Iona handover)
+      // Feature 010 P3c — ONE push type, TWO moments. The engine marks a no-response activation
+      // (`trigger:'no_response'`) because only it knows the member's window is still open and nothing is
+      // dialling yet: that gets the activation screen (Amendment 3). Everything else — a member-initiated
+      // alert, or any pre-010 push with no marker — keeps the original behaviour byte-for-byte, so the
+      // reactive path and older senders are untouched.
+      if (notification.data?.trigger === 'no_response' && notification.data?.cancel_window) {
+        _startSilenceActivation(notification.data);
+      } else {
+        // Proactive escalation entry. Mark the escalation active — mirrors the reactive commitEscalation
+        // path — so handleEscalationComplete's `savedState === 'active'` gate passes and the terminal card
+        // renders for a PROACTIVE escalation too (fixes the "stuck on Calling your contacts" gap).
+        setPreference('escalation_state', 'active');
+        setPreference('escalation_state_ts', String(Date.now()));
+        showEscalationActiveState();
+        _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
+        _activeRunToken = notification.data?.run_token || null;   // Feature 010 — carry the run_token for a later cancel POST
+        signalAudioStarted(notification.data);   // feature 006 — begin the Signal audio replica (Iona handover)
+      }
     } else if (type === 'escalation_complete') {
       handleEscalationComplete(notification.data);
       signalAudioComplete(notification.data);   // feature 006 — spoken terminal (ack / exhausted)
@@ -616,6 +635,7 @@ function initPushListeners() {
         bridgeAttempt.connectedContactFirst = (notification.data?.contact_first || '').trim();  // 009 T016 — carry the name to the dropped terminal
         bridgeAttempt.connectedContactPhone = (notification.data?.contact_phone || '').trim();  // 009 R-009-22 — capture at join-confirmed
         _setBridgeState('in_call');
+        _hideStopControl();                       // Feature 010 — press-1 locks the cancel: a live bridge is never half-cancelled
         _saJoined();                              // 009 T013 — reducer → joined (device silent; conversation is the audio)
         escalationScreenComplete({ outcome: 'acknowledged' });   // 009 T013 — settle the accepted chip ✓ (007 mirror)
         logBridgeEvent('BRIDGE_CONNECTED', { contact_index: bridgeAttempt.currentIndex });
@@ -676,14 +696,20 @@ function initPushListeners() {
       launchedFromPush = true;
       showTodayMessage(action.notification?.body ?? action.notification?.notification?.body ?? null, action.notification?.data);
     } else if (type === 'escalation_started') {
-      // Proactive escalation entry. Mark the escalation active — mirrors the reactive commitEscalation
-      // path — so handleEscalationComplete's `savedState === 'active'` gate passes and the terminal card
-      // renders for a PROACTIVE escalation too (fixes the "stuck on Calling your contacts" gap).
-      setPreference('escalation_state', 'active');
-      setPreference('escalation_state_ts', String(Date.now()));
-      showEscalationActiveState();
-      _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
-      signalAudioStarted(action.notification?.data);   // feature 006 — begin the Signal audio replica
+      // Feature 010 P3c — same two-moment fork as the received handler above (see there for the reasoning).
+      if (action.notification?.data?.trigger === 'no_response' && action.notification?.data?.cancel_window) {
+        _startSilenceActivation(action.notification.data);
+      } else {
+        // Proactive escalation entry. Mark the escalation active — mirrors the reactive commitEscalation
+        // path — so handleEscalationComplete's `savedState === 'active'` gate passes and the terminal card
+        // renders for a PROACTIVE escalation too (fixes the "stuck on Calling your contacts" gap).
+        setPreference('escalation_state', 'active');
+        setPreference('escalation_state_ts', String(Date.now()));
+        showEscalationActiveState();
+        _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
+        _activeRunToken = action.notification?.data?.run_token || null;   // Feature 010 — carry the run_token for a later cancel POST
+        signalAudioStarted(action.notification?.data);   // feature 006 — begin the Signal audio replica
+      }
     } else if (type === 'escalation_complete') {
       handleEscalationComplete(action.notification?.data);
       signalAudioComplete(action.notification?.data);   // feature 006 — spoken terminal
@@ -1059,9 +1085,75 @@ function showEscalationActiveState() {
   // screens (④/⑤), which present no buttons during the active phase. The exit (Return to Iona) lives
   // on the TERMINAL screen (③) once the escalation has finished.
   document.getElementById('btn-alarm-done').classList.add('hidden');
+  _showStopControl();   // Feature 010 — Phase-2 nav-locking cancel control on Oran's Promise
+}
+
+/* ── Feature 010 — Phase-2 cancel control (both modes). Two-step (tap → confirm) over a LOCKED nav;
+   hidden the instant a contact presses 1 (a live bridge is never half-cancelled). "Yes, stop" POSTs
+   /pwa-respond {response:'cancel'} — the engine treats a post-dial cancel as an acknowledge (halts the
+   sweep). Copy is placeholder (owner-reserved). ── */
+let _activeRunToken = null;   // set from escalation_started; carried on the cancel POST for instance-scoping
+/* ── Feature 010 window authority (captain ruling 19 Jul — the four laws) ─────────────────────────
+   Set ONLY by collision B: a member-raised button window is live on screen when a silence
+   escalation_started arrives underneath it. The engine's absolute dial moment (device-clock ms) is
+   ADOPTED into the window already showing, rather than a second window being opened over it (law 1).
+   Null whenever no adoption is in force — which is every case except that collision.
+   Read by the button countdown tick, which floors its own value against it: the adopted deadline can
+   only ever SHORTEN the visible window, never extend it. Both directions are honesty requirements —
+   showing time past the engine's dial is the screen-lies failure the anchoring work was ratified to
+   kill, and showing time past the button window's own zero would outlive the member's own commit. ── */
+let _adoptedEngineDeadlineAt = null;
+let _stopWired = false;
+function _lockNav(locked) {
+  const nav = document.querySelector('.today-nav');
+  if (nav) nav.classList.toggle('nav-locked', !!locked);
+}
+async function postAlarmCancel() {
+  const fcmToken = await getPreference('fcm_token');
+  if (!fcmToken) return false;
+  try {
+    const res = await fetch(`${STATUS_BASE}/pwa-respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      body: JSON.stringify({ fcm_token: fcmToken, response: 'cancel', run_token: _activeRunToken || '' }),
+    });
+    return res.ok;
+  } catch (e) { console.warn('[Alarm] cancel POST failed:', e); return false; }
+}
+function _hideStopControl() {
+  const ctl = document.getElementById('alarm-stop-control');
+  if (ctl) ctl.classList.add('hidden');
+  const cf = document.getElementById('alarm-stop-confirm');
+  if (cf) cf.classList.add('hidden');
+  _lockNav(false);
+}
+function _showStopControl() {
+  const ctl = document.getElementById('alarm-stop-control');
+  const bar = document.getElementById('btn-stop-calling');
+  const confirm = document.getElementById('alarm-stop-confirm');
+  if (!ctl || !bar || !confirm) return;
+  confirm.classList.add('hidden');
+  bar.classList.remove('hidden');
+  ctl.classList.remove('hidden');
+  _lockNav(true);   // navigation locks — the two-step cancel (or a resolution) is the only way off
+  if (!_stopWired) {
+    _stopWired = true;
+    bar.addEventListener('click', () => { bar.classList.add('hidden'); confirm.classList.remove('hidden'); });
+    document.getElementById('btn-stop-keep').addEventListener('click', () => {
+      confirm.classList.add('hidden'); bar.classList.remove('hidden');
+    });
+    document.getElementById('btn-stop-yes').addEventListener('click', async () => {
+      _hideStopControl();
+      _saCancelledLocal();           // silence the narration AT THE TAP (no wait for the complete push)
+      _restoreVolumeNow();           // the alarm is over — hand the volume back
+      await postAlarmCancel();       // engine halts the sweep (post-dial cancel → existing acknowledge machinery)
+      showAlarmIdleReset();
+    });
+  }
 }
 
 function showTerminalState() {
+  _hideStopControl();   // Feature 010 — clear the Phase-2 control + unlock the nav at the terminal
   _alarmFlowActive = true;
   show('screen-today');
   hideOrb();
@@ -1202,8 +1294,17 @@ function showAlarmIdleReset() {
   setPreference('escalation_state', 'idle');
   removePreference('escalation_terminal_outcome');
   removePreference('escalation_terminal_name');
+  // Law-3 companion (2026-07-19): the run token is now a PREDICATE, not just a payload — the button-path
+  // cancel POSTs iff one is known. That only stays honest if "known" means "a run is live or held", so the
+  // token retires here, on the same single dismissal path that retires escalation_state. Left uncleared it
+  // was sticky for the life of the process, and a later button-window cancel would have POSTed a dead run's
+  // token against whatever row Last Check-in then pointed at.
+  _activeRunToken = null;
   _clearBridgeTerminalReturnTimer();  // any pending success-terminal auto-return is now moot
   _clearEscalationSelfHealTimer();     // escalation completed or was reset — cancel the self-heal backstop
+  _hideStopControl();   // Feature 010 — on-device bug: the stop-calling control (and the nav lock) survived
+                        // the return to rest. This is THE single dismissal path, so clearing it here covers
+                        // every route back — cancel, terminal, 60s auto-return, self-heal, Return to Iona.
   document.getElementById('alarm-countdown-card').classList.add('hidden');
   document.getElementById('alarm-escalation-card').classList.add('hidden');
   document.getElementById('alarm-terminal-card').classList.add('hidden');
@@ -1502,6 +1603,117 @@ async function _roundsPick(n) {
   }
 }
 
+/* ── Feature 010 — cancel-window picker. Member-controlled, Memberstack-only ('alarm-cancel-window'),
+   NEVER Airtable (the engine reads its own Airtable field via Make sync). Visible on ALL plans (no
+   gating — Amendment 6). Persistence mirrors the rounds selector (_cmWrite, optimistic + revert-on-fail).
+   The spinny wheel is net-new UI; write-on-settle (debounced) matches the app's immediate-write settings. ── */
+const _CW_MIN = 5, _CW_MAX = 60, _CW_STEP = 5, _CW_DEFAULT = 10;
+function _cwClamp(v) {
+  let n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return _CW_DEFAULT;
+  n = Math.round(n / _CW_STEP) * _CW_STEP;
+  return Math.min(_CW_MAX, Math.max(_CW_MIN, n));
+}
+function _cwFromMember() {
+  return _cwClamp(currentMember && currentMember.customFields && currentMember.customFields['alarm-cancel-window']);
+}
+function _cwRenderRowValue() {
+  // On-device finding (owner, 2026-07-18): showing the value on the settings row made the label wrap to two
+  // lines, and no other row carries a value — so the chip was removed. Kept as a null-guarded no-op so the
+  // call site stays harmless; restore the span in index.html if a value on the row is ever wanted again.
+  const el = document.getElementById('cw-row-value');
+  if (el) el.textContent = _cwFromMember() + 's';
+}
+let _cwBuilt = false, _cwCommitTimer = null, _cwWired = false;
+function _cwBuildWheel() {
+  const wheel = document.getElementById('cw-wheel');
+  if (!wheel || _cwBuilt) return;
+  for (let s = _CW_MIN; s <= _CW_MAX; s += _CW_STEP) {
+    const d = document.createElement('div');
+    d.className = 'cw-item';
+    d.dataset.v = String(s);
+    d.innerHTML = s + '<span class="cw-unit">sec</span>';
+    d.addEventListener('click', () => _cwCenter(Number(d.dataset.v), true));
+    wheel.appendChild(d);
+  }
+  wheel.addEventListener('scroll', _cwOnScroll);
+  _cwBuilt = true;
+}
+function _cwCenteredValue() {
+  const wheel = document.getElementById('cw-wheel');
+  if (!wheel) return _CW_DEFAULT;
+  const mid = wheel.scrollTop + wheel.clientHeight / 2;
+  let best = null, bd = Infinity;
+  wheel.querySelectorAll('.cw-item').forEach(it => {
+    const c = it.offsetTop + it.offsetHeight / 2, dd = Math.abs(c - mid);
+    if (dd < bd) { bd = dd; best = it; }
+  });
+  return best ? _cwClamp(best.dataset.v) : _CW_DEFAULT;
+}
+function _cwMark() {
+  const n = _cwCenteredValue();
+  document.querySelectorAll('#cw-wheel .cw-item').forEach(it => it.classList.toggle('sel', _cwClamp(it.dataset.v) === n));
+  return n;
+}
+function _cwCenter(v, smooth) {
+  const wheel = document.getElementById('cw-wheel');
+  const el = wheel && wheel.querySelector('.cw-item[data-v="' + v + '"]');
+  if (!el) return;
+  wheel.scrollTo({ top: el.offsetTop - (wheel.clientHeight / 2 - el.offsetHeight / 2), behavior: smooth ? 'smooth' : 'auto' });
+  setTimeout(_cwMark, smooth ? 180 : 0);
+}
+let _cwLastTick = null;
+function _cwOnScroll() {
+  const n = _cwMark();
+  // Owner request (on-device): the wheel should click as it cycles. Reuse the EXISTING interface-feedback
+  // tap — the same sound the app/text/call buttons make — and fire it only when the CENTRED value actually
+  // changes, so it ticks once per notch rather than on every scroll pixel. Respects the member's
+  // sound/vibrate/off setting automatically (Feedback owns that); silent if the plugin is absent.
+  if (n !== _cwLastTick) {
+    _cwLastTick = n;
+    try { if (window.Feedback) window.Feedback.tap(); } catch (e) {}
+  }
+  if (_cwCommitTimer) clearTimeout(_cwCommitTimer);
+  _cwCommitTimer = setTimeout(_cwCommit, 400);   // write-on-settle (debounced), matches app's immediate-write settings
+}
+async function _cwCommit() {
+  _cwCommitTimer = null;
+  const n = _cwMark();
+  const prev = _cwFromMember();
+  if (n === prev) return;
+  if (currentMember) { currentMember.customFields = currentMember.customFields || {}; currentMember.customFields['alarm-cancel-window'] = String(n); }
+  if (memberConfig) memberConfig.alarmCancelWindow = n;   // keep the live device countdown in sync at once
+  _cwRenderRowValue();
+  const ok = await _cmWrite({ 'alarm-cancel-window': String(n) });
+  if (!ok) {
+    if (currentMember && currentMember.customFields) currentMember.customFields['alarm-cancel-window'] = String(prev);
+    if (memberConfig) memberConfig.alarmCancelWindow = prev;
+    _cwRenderRowValue();
+    _cwCenter(prev, true);
+    if (typeof _showCalmNote === 'function') _showCalmNote('Could not save that just now. Please try again.');
+  }
+}
+function _cwExit() {
+  if (_cwCommitTimer) { clearTimeout(_cwCommitTimer); _cwCommit(); }   // flush any pending settle before leaving
+  show('screen-today');
+  const ov = document.getElementById('settings-overlay');
+  if (ov) ov.classList.remove('hidden');
+  if (typeof _activateSettingsTab === 'function') _activateSettingsTab('account');
+}
+function openCancelWindowScreen() {
+  show('screen-cancel-window');
+  _cwBuildWheel();
+  if (!_cwWired) {
+    const back = document.getElementById('btn-cw-back');
+    if (back) back.addEventListener('click', _cwExit);
+    const done = document.getElementById('btn-cw-done');
+    if (done) done.addEventListener('click', _cwExit);
+    _cwWired = true;
+  }
+  _cwLastTick = _cwFromMember();   // seed so the programmatic landing below doesn't click on open
+  setTimeout(() => _cwCenter(_cwFromMember(), false), 0);   // land on the member's current value once laid out
+}
+
 async function readAndApplyServiceState() {
   await readServiceStatus();      // plan/entitlement side effects (planName / hasHandsFree / escalationMode)
   await _refreshMemberStatus();   // service status source of truth = the Memberstack member (best-effort)
@@ -1510,6 +1722,7 @@ async function readAndApplyServiceState() {
   _applyBeaconOkayGate();    // Beacon — hide the un-armable OKAY button on the Today screen
   _renderReactiveMethodPicker();  // feature 004 — reflect stored choice + entitlement in the picker
   _renderRoundsSelector();        // rounds (sweep-count) — reflect the member's stored choice
+  _cwRenderRowValue();            // Feature 010 — cancel-window row shows the member's stored value
 }
 
 // US1 — the paused banner is INDICATOR ONLY. Tapping opens Settings (where pause/resume is
@@ -1591,9 +1804,13 @@ async function _startIonaEscalation(bridgeFallthrough) {
   await setPreference('escalation_state_ts', String(Date.now()));
 
   await playAlarmSiren();
-  if (!bridgeFallthrough) {
-    await playVoiceMessage();
-  }
+  // Amendment 8/9 — the old TTS line here is retired: it announced a cancel window that does not exist on
+  // this path (the window already ran at the front door in _startHelpSequence) and never played anyway.
+  // BRIDGE HARD-FAILURE LINE: deliberately NOT wired. Captain ruling 2026-07-18 — the clip exists
+  // (bridge_fallthrough.mp3) but its wording and voice are owner-reserved to the copy session, and no
+  // placeholder debuts in a crisis moment. Behaviour here is therefore unchanged from today (silent from
+  // this point; the Signal-audio pipeline narrates). Wire the call in _playBridgeFallthroughMessage's
+  // caller ONLY once the copy session has ruled.
   showEscalationActiveState();
   commitEscalation(fcmToken);
 }
@@ -1707,6 +1924,17 @@ async function _startHelpSequence(triggerSource) {
   //   - _summonEvaluating: a prior press is still in the _escalationConfirmedLive await below — a rapid
   //     flurry could slip through that window, so this closes it (a flurry still resolves to ONE sequence).
   // Both flags are synchronous, so the check-and-set completes before any await yields.
+  //
+  // COLLISION A (captain ruling 19 Jul) — DELIBERATELY STILL AN ABSORB, not an oversight. A help press
+  // during a live SILENCE window lands here and is swallowed. That satisfies law 1 but not law 2: a
+  // silence escalation is always Oran's Signal (Amendment 4), so a hands-free member pressing for help
+  // here is silently denied their bridge. The ruled fix is to convert the existing window to
+  // member-initiated AND tell the engine to stand its hold down — and that second half IS the
+  // engine-side collapse, which the captain gated behind the restart spike.
+  // Converting locally WITHOUT the collapse would be strictly worse than the bug: the silence window
+  // owns no deadline, so at zero it would commit a member escalation while the engine's hold dialled
+  // its own — manufacturing the two-run failure on a path that does not have it today. Coupled halves
+  // deploy together. So A stays absorbed until the collapse lands with it.
   if (_summonCountdownActive || _summonEvaluating) return;
   _summonEvaluating = true;
   try {
@@ -1725,33 +1953,81 @@ async function _startHelpSequence(triggerSource) {
   _clearBridgeTerminalReturnTimer();  // a fresh help press cancels any pending success-terminal auto-return
   _clearEscalationSelfHealTimer();    // and any stale escalation self-heal backstop from a prior run
   _maxVolumeNow();   // 009 Story 4 (R-009-8) — FIRST act of the press: loud + speaker BEFORE siren/cancel window
+  _adoptedEngineDeadlineAt = null;   // a fresh window adopts nothing until a silence run lands underneath it
   escalationCountdownValue = getCancelWindowSeconds(memberConfig);
   showCancelWindowState();
 
   let cancelledByUser = false;
   const cancelBtn = document.getElementById('btn-cancel');
 
-  function cancelAlarm() {
+  async function cancelAlarm() {
     if (cancelledByUser) return;
     cancelledByUser = true;
     _summonCountdownActive = false;  // countdown ended (cancelled) — release the duplicate guard
+    _adoptedEngineDeadlineAt = null; // and drop any adopted engine deadline with the window that held it
     if (escalationCountdownTimer) { clearInterval(escalationCountdownTimer); escalationCountdownTimer = null; }
     if (_audioCtx) { try { _audioCtx.close(); } catch (e) {} _audioCtx = null; }
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    // Amendment 9 condition 1 — the cancel tap is live THROUGH the siren and the speech, so it must also
+    // SILENCE them. The WebAudio siren/tone die with the context above; Oran's clip is an <audio> element
+    // held in _saCurrent, so stop it explicitly. This is a MEMBER-INITIATED stop, not one of the internal
+    // signal transitions the atomic-clip ruling governs: once the member has cancelled, "your contacts will
+    // be called in N seconds" is false, and continuing to speak it would be the dishonest choice.
+    try { if (_saCurrent) { _saCurrent.pause(); _saCurrent = null; } } catch (e) {}
+    // LAW 3 (captain ruling 2026-07-19 — window collision, the four laws): a member's cancel resolves
+    // BOTH questions in one tap. This window is member-raised and owns its own deadline, so the cancel
+    // was historically LOCAL-ONLY — correct while a button window was the only thing that could be open.
+    // It is not: an engine hold can be open UNDERNEATH it (collision C). The silence run's
+    // escalation_started set _activeRunToken, and the RUNNER process is holding a clock this screen knows
+    // nothing about. A local reset then clears the screen while the engine dials anyway — the member
+    // believes they have stopped it and they have not. That was live until this change.
+    // So: whenever a run token is known, the cancel POSTs. postAlarmCancel patches the durable hold row,
+    // the only cross-process channel there is; the server decides in-window vs late off the row's real
+    // status, so a tap racing the deadline is resolved by the engine, never guessed at here.
+    // ORDER IS LOAD-BEARING: showAlarmIdleReset() clears _activeRunToken (it is the single dismissal
+    // path), so the POST must complete before it — otherwise the token is gone before it ships.
+    if (_activeRunToken) {
+      _markContactResolvedByAlarm();   // law 3 — the one tap also answers the silence run's open contact
+      await postAlarmCancel();
+    }
     showAlarmIdleReset();
   }
 
   cancelBtn.addEventListener('click', cancelAlarm, { once: true });
 
   // Siren then tones fire immediately — cancel is live during playback (matches pre-bridge behaviour).
+  // Feature 010 / Amendment 9 — SEQUENTIAL: siren → attention tone → Oran's clip → countdown.
+  // Owner's ear ruled sequential over countdown-under-speech: every setting's spoken promise is then
+  // TRUE (the countdown genuinely starts with N seconds left), which is what keeps the 5s floor viable.
+  // The cancel tap is live THROUGHOUT — the listener + visible button are armed by showCancelWindowState()
+  // above, before a single sound plays (condition 1), and cancelAlarm() stops whatever is mid-play.
   await playAlarmSiren();
   if (cancelledByUser) return;
-  await playVoiceMessage();
+  await playAttentionTone();                                   // addendum — the existing pre-Iona tone, reused
+  if (cancelledByUser) return;
+  await _saPlayOnce(_activationClipFor(escalationCountdownValue));   // Oran speaks ONCE, number included
   if (cancelledByUser) return;
 
   escalationCountdownTimer = setInterval(async () => {
     if (cancelledByUser) { clearInterval(escalationCountdownTimer); return; }
     escalationCountdownValue--;
+    // LAW 1 / collision B — if a silence run landed underneath this window, its engine deadline was
+    // adopted here rather than a second window being opened. FLOOR, never extend: the visible number is
+    // the sooner of the member's own remaining ticks and what the engine will actually honour. Applied
+    // per-tick (not once at adoption) so it holds even if the push lands mid-countdown.
+    //
+    // Math.floor, NOT ceil, and that is the correctness half. This tick is 1s wide, so the engine's
+    // deadline almost always falls mid-tick. Rounding UP hands the member the leftover fraction and the
+    // screen then shows "1" while the engine is already dialling — the exact screen-lies failure the
+    // anchoring ruling was ratified to kill (a verifier cell caught it doing this: commit landed ~880ms
+    // AFTER the engine's dial). Flooring spends the fraction instead, so the window closes just BEFORE
+    // the engine's deadline rather than just after. Same convention, same reasoning, as the silence
+    // path's own _remaining().
+    if (_adoptedEngineDeadlineAt) {
+      escalationCountdownValue = Math.min(
+        escalationCountdownValue,
+        Math.max(0, Math.floor((_adoptedEngineDeadlineAt - Date.now()) / 1000)));
+    }
     const numEl = document.getElementById('alarm-countdown-num');
     numEl.textContent = escalationCountdownValue;
     numEl.classList.add('pulse');
@@ -1761,6 +2037,7 @@ async function _startHelpSequence(triggerSource) {
       clearInterval(escalationCountdownTimer);
       escalationCountdownTimer = null;
       _summonCountdownActive = false;  // countdown ended (committing) — escalation_state now guards re-entry
+      _adoptedEngineDeadlineAt = null; // the window that adopted it is spent
       cancelBtn.removeEventListener('click', cancelAlarm);
       if (cancelledByUser) return;
 
@@ -1793,11 +2070,285 @@ async function _startHelpSequence(triggerSource) {
       KeepAwake.keepAwake();
       await setPreference('escalation_state', 'active');
       await setPreference('escalation_state_ts', String(Date.now()));
-      await playVoiceMessage();
+      // Amendment 8 — the second TTS line here is retired: it repeated the cancel instruction AFTER the
+      // window had closed and the cancel button was hidden (false), always said "10" regardless of the
+      // member's setting, and never played anyway. Oran speaks ONCE at activation; the Signal audio
+      // takes over from here.
       showEscalationActiveState();
       commitEscalation(fcmToken);
     }
   }, 1000);
+}
+
+/* ══ Feature 010 P3c — the SILENCE-TRIGGER activation screen (Amendment 3) ═══════════════════════
+   Until now a no-response escalation_started landed straight on Oran's Promise. Under 010 that screen
+   is a LIE at that moment: the engine is holding the member's cancel window and nothing is dialling.
+   This is the screen Amendment 3 called for and that no device has yet seen — siren → tone → Oran's
+   clip → countdown → one-tap cancel — with Oran's Promise appearing only when the sweep actually
+   starts.
+
+   THE ONE STRUCTURAL DIFFERENCE from the button path (_startHelpSequence): that countdown OWNS its
+   deadline — at zero the device itself commits the escalation. This countdown owns NOTHING. The engine
+   holds the clock (lead-in + window) and dials on silence; this is a faithful MIRROR of a deadline
+   being kept elsewhere. So at zero it does not commit, does not dial, and does not flip itself to the
+   Promise — it waits for the engine to say the sweep began (the first escalation_advance). That is why
+   the cancel here POSTs to the engine instead of just returning locally: the member's tap has to reach
+   the process holding the clock, or the contacts get called anyway.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+// Amendment 7 item 3 — the silence trigger's cancel reads as CONFIRMING OKAY (nobody has been called
+// and the member is answering the day's open contact), not as escaping a mistap. Button triggers keep
+// the plain "CANCEL". The EventLog vocabulary splits on the same line.
+const SILENCE_CANCEL_LABEL = "I'M OKAY — CANCEL";
+const BUTTON_CANCEL_LABEL = 'CANCEL';
+
+// Backstop for the activation→Promise flip. The flip is normally driven by the first escalation_advance;
+// this covers that push being lost (FCM is not guaranteed) so the member is never stranded on a dead
+// countdown showing 0. Generous — the advance almost always beats it — and it fails toward the TRUTH:
+// by the time it fires the engine's deadline has certainly passed, so the sweep genuinely is running.
+const SILENCE_FLIP_BACKSTOP_MS = 12000;
+
+// Poll cadence for the deadline-anchored countdown (see the loop for why it is anchored rather than
+// counted). Sub-second so the displayed number turns over promptly at each boundary instead of lagging
+// up to a full second behind the deadline it is reporting; the loop repaints only on an actual change,
+// so the pulse and its tone still fire exactly once per second.
+const SILENCE_TICK_MS = 250;
+
+// The ruled silence-trigger line (owner, 19 Jul): "This is Oran. Iona hasn't been able to reach you
+// today. If you're okay, please tap cancel now." Oran/Arthur, bundled static.
+// It carries NO number, and that is what makes it usable everywhere: the twelve numbered clips could
+// only ever play on a full window, so a cold landing (where part of the window is already gone) had to
+// run silent. This line is true at any remaining time, so Oran finally speaks on the path a silence
+// trigger actually takes — a backgrounded phone. It also replaces "You have activated your alarm",
+// which was false here: the member activated nothing, they were unreachable.
+// The BUTTON path is untouched and keeps its numbered clips — there the member did activate the alarm
+// and the full window is guaranteed, so both halves of that line stay true.
+// Resolved at CALL time, not load time — deliberately a function, matching _activationClipFor. As a
+// top-level `const` this read SA_STATIC_BASE (declared ~1300 lines below) while it was still in the
+// temporal dead zone, which threw at module load and took the whole of app.js with it: no handlers, no
+// screens, blank app. `node --check` cannot see this — it is a runtime fault, not a syntax one.
+function _silenceActivationClip() { return SA_STATIC_BASE + 'activation_silence.mp3'; }
+// siren 5.00 + attention tone 1.10 + Oran 6.07 = 12.17, rounded up. Paired with the engine's 14s
+// lead-in constant — re-measure both if any of the three assets changes.
+const SILENCE_SEQUENCE_SECONDS = 13;
+
+let _silenceActivation = null;   // { data, runToken, cancelled, flipped, timer, backstop } while on screen
+
+function _silenceCancelBtn() { return document.getElementById('btn-cancel'); }
+
+// Tear down every timer/listener the activation screen owns. Safe to call twice (both exits use it).
+function _silenceTeardown() {
+  const s = _silenceActivation;
+  if (!s) return;
+  if (s.timer) { clearInterval(s.timer); s.timer = null; }
+  if (s.backstop) { clearTimeout(s.backstop); s.backstop = null; }
+  try { _silenceCancelBtn().removeEventListener('click', s.onCancel); } catch (e) {}
+  _silenceCancelBtn().textContent = BUTTON_CANCEL_LABEL;   // restore for the button path
+  _summonCountdownActive = false;
+}
+
+// The engine says the sweep has begun → hand the screen to Oran's Promise and release the Signal audio
+// that escalation_started deliberately did NOT start. Idempotent: only the first caller acts.
+function _silenceFlipToPromise(data) {
+  const s = _silenceActivation;
+  if (!s || s.flipped || s.cancelled) return false;
+  s.flipped = true;
+  // EXPIRE path — the window ran out and the sweep has begun. Captain 19 Jul: the escalation surface
+  // now owns the screen, so the prompts that went unanswered are SUPERSEDED. Offering a stale OKAY
+  // against a contact the engine has moved past is the stale-state class.
+  _markContactResolvedByAlarm();
+  _silenceTeardown();
+  _silenceActivation = null;
+  // signalAudioStarted was DEFERRED from escalation_started to exactly here (P3c item 3). Starting it at
+  // push time would have narrated a reaching phase that had not begun — the audio equivalent of the
+  // Promise screen's lie — and would have collided with the activation clip. `data` is the advance's own
+  // payload when the flip is advance-driven, so the reducer gets the run's true identity.
+  try { signalAudioStarted(data || s.data); } catch (e) { console.warn('[010] deferred signalAudioStarted failed:', e); }
+  showEscalationActiveState();
+  return true;
+}
+
+// CAPTAIN RULING 19 Jul — ENGINE DECLARES, DEVICE OBEYS.
+// Both landings now anchor to the engine's ABSOLUTE dial deadline, reconstructed from the three values it
+// already sends: `run_ts + device_lead_in + cancel_window`. The semantic shift is intended and ratified:
+// the 14s constant is no longer "how long the device's audio takes" — it is the engine's DECLARED lead-in,
+// and the device conforms to it, showing only what truly remains.
+//
+// This is what makes the screen honest under FCM latency, which is the whole problem. Delivery took 5.08s
+// on the 08:59 run and 1.16s on the 16:09 one — same device, same network, 4× apart. The old foreground
+// path started a full-length window whenever the push happened to land, so every one of those seconds came
+// straight off the margin and the engine dialled while the screen still showed time (08:59: 5.04s early).
+// Anchored, a slow push simply means a shorter countdown — the screen's zero is DERIVED from the engine's
+// deadline and so can never outlive it.
+//
+// opts.resumeSeconds — retained only as the COLD landing's already-computed remainder (the native ring has
+// sounded and the member has been looking at a locked phone). It no longer drives the countdown: the
+// deadline does, for both paths.
+async function _startSilenceActivation(data, opts) {
+  if (_silenceActivation) return;            // duplicate push — one window, never two
+  const resumeSeconds = opts && opts.resumeSeconds;
+  const _win = _cwClamp(data && data.cancel_window);
+  const _lead = parseInt((data && data.device_lead_in) ?? '0', 10) || 0;
+  const _runTs = parseInt((data && data.run_ts) ?? '0', 10) || 0;
+  // The engine's dial moment, in device-clock terms. Null when run_ts is absent (a pre-010 or malformed
+  // push) — then we fall back to the member's window, which is the old behaviour and no worse than it was.
+  const _deadlineAt = _runTs ? _runTs + (_lead + _win) * 1000 : null;
+
+  /* ── COLLISION B — the observed bug (captain ruling 19 Jul, laws 1 and 3) ───────────────────────
+     A member-raised BUTTON window is already live on screen: `_summonCountdownActive` is true but
+     `_silenceActivation` is null, because the button path owns `escalationCountdownTimer` and this
+     function's own duplicate guard above only sees ITS own window.
+     Until this branch, the function ran straight on into a second window over the first — it
+     re-rendered via showCancelWindowState(), took the SHARED `escalationCountdownValue` and the
+     shared `alarm-countdown-num` node for its own timer, played a second siren/tone/Oran sequence
+     over the one still playing, and left the button's timer running to `commitEscalation`
+     underneath. That is how one member-situation produced TWO escalations.
+     ENGINE WINS BY DEFAULT: adopt the engine's dial deadline into the window already on screen and
+     take its run token, so the member's ONE cancel reaches the durable hold row (law 3) — the button
+     path's cancelAlarm POSTs whenever a token is known. No second window, no second render, no
+     second audio sequence, no second timer.
+     Deliberately NOT set here: `_silenceRunToken`. The member pressed help, so their commit governs
+     the mode (law 2) and the flip must select Iona's line, not Oran's silence line.
+     Deliberately NOT set here: `escalation_state='active'`. The button window has not committed, and
+     arming the flag early would hand the button path a lifecycle it does not expect; re-entry is
+     already guarded by `_summonCountdownActive`, which is true throughout.
+     KNOWN RESIDUAL, ruled to Phase 2: at expiry the device still commits a member-initiated
+     escalation while the engine's hold dials its own — two runs. Closing that is the engine-side
+     COLLAPSE, which the captain gated behind the restart spike (a half-collapsed hold re-armed by
+     orphan recovery would dial contacts the member had superseded). This branch fixes law 1 and
+     law 3 today and does not make the expiry case any worse than it already is. ── */
+  if (_summonCountdownActive && !_silenceActivation) {
+    if (_deadlineAt) _adoptedEngineDeadlineAt = _deadlineAt;
+    _activeRunToken = (data && data.run_token) || _activeRunToken;
+    return;
+  }
+  // Remaining per the engine, clamped to the full hold so device/server clock skew can shorten the
+  // countdown but never invent time, and FLOORED so the fraction is spent rather than handed out.
+  const _remaining = () => (_deadlineAt
+    ? Math.max(0, Math.min(_lead + _win, Math.floor((_deadlineAt - Date.now()) / 1000)))
+    : _win);
+  const seconds = resumeSeconds != null ? resumeSeconds : (_deadlineAt ? _remaining() : _win);
+  // Too little left to be a window at all — a badly delayed push, where the engine has dialled or is about
+  // to. Opening a 2-second countdown here would offer a cancel that cannot be honoured; the sweep screen
+  // is the truth. Mark the run as silence-triggered first so Amendment 11 still selects Oran's line, then
+  // let the reducer's own no-'started'-seen synthesis narrate it off the incoming advance.
+  if (seconds < SILENCE_RESUME_FLOOR_SECONDS) {
+    _silenceRunToken = (data && data.run_token) || null;
+    setPreference('escalation_state', 'active');
+    setPreference('escalation_state_ts', String(Date.now()));
+    showEscalationActiveState();
+    return;
+  }
+
+  _summonCountdownActive = true;   // reuses the SC-003 duplicate guard: a help press during this window is
+                                   // ABSORBED rather than opening a second, competing window.
+  // Mirrors the pre-010 handler: the activation is in progress and WILL dial unless cancelled, so the
+  // state that gates handleEscalationComplete's terminal render is armed here, exactly as before. The
+  // cancel path returns it to idle via showAlarmIdleReset.
+  setPreference('escalation_state', 'active');
+  setPreference('escalation_state_ts', String(Date.now()));
+  _activeRunToken = (data && data.run_token) || null;   // the cancel POST is instance-scoped on this
+  _silenceRunToken = _activeRunToken;                   // Amendment 11 — mark THIS run as silence-triggered,
+                                                        // so the flip selects Oran's line over Iona's
+
+  const s = { data: data || null, runToken: _activeRunToken, cancelled: false, flipped: false,
+              timer: null, backstop: null, onCancel: null };
+  _silenceActivation = s;
+
+  escalationCountdownValue = seconds;
+  _silenceCancelBtn().textContent = SILENCE_CANCEL_LABEL;
+  showCancelWindowState();
+  _maxVolumeNow();   // 009 Story 4 — loud from word one, as on every other alarm entry
+
+  s.onCancel = async () => {
+    if (s.cancelled || s.flipped) return;
+    s.cancelled = true;
+    // CANCEL path — Amendment 7: this tap IS the member confirming okay, and it resolves the day's open
+    // contact exactly as an okay does. So the queued prompts asking "are you okay?" have already been
+    // answered; re-presenting them would ask a question the member just answered, with an OKAY button
+    // for a contact that is already closed.
+    _markContactResolvedByAlarm();
+    // Amendment 9 condition 1 — the tap is live from second zero, through siren, tone and speech, so it
+    // must SILENCE them. Same reasoning as the button path: the moment the member cancels, "your contacts
+    // will be called in N seconds" is false, and continuing to say it would be the dishonest choice.
+    if (_audioCtx) { try { _audioCtx.close(); } catch (e) {} _audioCtx = null; }
+    try { if (_saCurrent) { _saCurrent.pause(); _saCurrent = null; } } catch (e) {}
+    _silenceTeardown();
+    _silenceActivation = null;
+    // THE LOAD-BEARING LINE. The clock is in the runner process; a local reset would leave it running and
+    // the contacts would be called regardless. postAlarmCancel patches the durable hold row, which is the
+    // only cross-process channel there is. The server decides in-window vs late off the row's real status,
+    // so a tap racing the deadline is resolved by the engine, never guessed at here.
+    await postAlarmCancel();
+    showAlarmIdleReset();
+  };
+  _silenceCancelBtn().addEventListener('click', s.onCancel);
+
+  // Amendment 9 — SEQUENTIAL: siren → attention tone → Oran → countdown. The engine's 14s lead-in
+  // constant is the measurement of exactly these three sounds; changing the order or the assets here
+  // without re-measuring CANCEL_WINDOW_DEVICE_LEAD_IN_SECONDS would desynchronise screen and engine.
+  // A cold landing plays it too now — only skipping when what remains could not fit it, in which case
+  // the countdown alone is the honest surface rather than audio that would outlive the engine's dial.
+  // Gated on TIME REMAINING, not on which landing this is. Before anchoring, the foreground path always
+  // had a full window so the audio always fitted; anchored, it can arrive with very little left if the
+  // push was slow, and playing a 12s sequence into a 9s remainder would put Oran still speaking after the
+  // contacts had been rung. Same rule now governs both landings: if it does not fit, the countdown alone
+  // is the honest surface.
+  if (seconds > SILENCE_SEQUENCE_SECONDS + 2) {
+    await playAlarmSiren();
+    if (s.cancelled || s.flipped) return;
+    await playAttentionTone();
+    if (s.cancelled || s.flipped) return;
+    await _saPlayOnce(_silenceActivationClip());
+    if (s.cancelled || s.flipped) return;
+  }
+
+  // The sequence has just consumed real time, so re-read the engine's deadline rather than trusting the
+  // figure computed before it played. This single line is what the anchoring buys on BOTH paths: whatever
+  // the push cost and whatever the audio cost, what the member now sees is what the engine will actually
+  // honour. Without a deadline (no run_ts) we keep the old arithmetic as a floor.
+  escalationCountdownValue = _deadlineAt
+    ? _remaining()
+    : Math.max(1, resumeSeconds ? seconds - SILENCE_SEQUENCE_SECONDS : seconds);
+
+  document.getElementById('alarm-countdown-num').textContent = escalationCountdownValue;
+
+  // DEADLINE-ANCHORED, not tick-counted — and this is a correctness choice, not a tidiness one. The
+  // margin between this countdown reaching zero and the engine dialling is only ~0.5s (the engine's 14s
+  // constant against a measured 13.44s lead-in, rounded up). A setInterval that merely decrements drifts
+  // LATE under load — never early — and over 60 ticks at the top of the ladder it can easily accumulate
+  // past half a second. That drift points the wrong way: a slow countdown still shows seconds remaining
+  // at the moment the engine dials, which is precisely the screen-lies failure the rounding was ratified
+  // to prevent. Reading a fixed deadline each tick means drift affects only how promptly a number is
+  // repainted, and can never accumulate into the displayed value.
+  //
+  // ANCHORED (captain ruling): the countdown counts down to the ENGINE'S DIAL MOMENT itself, not to a
+  // device-local target derived from it. There is no arithmetic left to drift — the screen's zero IS the
+  // engine's deadline. The device-local form survives only as the no-run_ts fallback.
+  const zeroAt = _deadlineAt || (Date.now() + escalationCountdownValue * 1000);
+  s.timer = setInterval(() => {
+    if (s.cancelled || s.flipped) { clearInterval(s.timer); s.timer = null; return; }
+    const remaining = Math.max(0, Math.ceil((zeroAt - Date.now()) / 1000));
+    if (remaining === escalationCountdownValue) return;   // sub-second tick, nothing to repaint
+    escalationCountdownValue = remaining;
+    const numEl = document.getElementById('alarm-countdown-num');
+    numEl.textContent = escalationCountdownValue;
+    numEl.classList.add('pulse');
+    setTimeout(() => numEl.classList.remove('pulse'), 200);
+    playPulseTone();
+    if (escalationCountdownValue <= 0) {
+      clearInterval(s.timer); s.timer = null;
+      // Zero reached — the member's window is spent. Hide the cancel: the engine's deadline has passed
+      // (or is about to), so continuing to offer a one-tap cancel would promise something this screen
+      // can no longer guarantee. A member who still wants to stop it gets the Phase-2 two-step control
+      // the moment the Promise renders — which routes to the same endpoint and the acknowledge machinery.
+      _silenceCancelBtn().classList.add('hidden');
+      // And now we WAIT. Not flipping here is the whole point: the engine owns the dial, so only the
+      // engine can say the sweep began. Holding at 0 for a beat is the honest reading of the ratified
+      // rounding (0 → brief pause → dialing, never "8 seconds left" while contacts already ring).
+      s.backstop = setTimeout(() => _silenceFlipToPromise(null), SILENCE_FLIP_BACKSTOP_MS);
+    }
+  }, SILENCE_TICK_MS);
 }
 
 // --- Section 6: Today screen (message display, response POST) ---
@@ -1805,7 +2356,49 @@ async function _startHelpSequence(triggerSource) {
 let hasResponded = false;
 let pendingNotifData = null;
 
+/* ── Captain ruling 19 Jul — the resolved contact's queued prompts are DISCARDED ─────────────────
+   Set when an alarm resolves the day's open contact. Two paths, one consequence (captain: "discard,
+   both paths"): a CANCEL is the member answering (Amendment 7 — it resolves the day's contact exactly
+   as an okay does), and an EXPIRE is superseded (the escalation surface owns the screen; a stale OKAY
+   offered against a closed contact is the stale-state class).
+
+   Why a flag alone is not enough: the queued pushes flush when the app foregrounds, which is often
+   AFTER the alarm has already returned to rest — so the guard below has to outlive the alarm, not just
+   cover it. That is precisely the case the owner reported.
+
+   BOUNDARY (captain, explicit): only the RESOLVED contact's prompts are discarded — a LATER scheduled
+   contact must arrive untouched. That is why the two types are treated differently below. ── */
+let _contactResolvedByAlarm = false;
+
+function _markContactResolvedByAlarm() { _contactResolvedByAlarm = true; }
+
+// AMENDMENT 11 — which RUN came from a silence trigger, so the sweep-start line can be trigger-selected
+// at the flip. Keyed by run_token rather than a bare boolean so a later reactive run in the same app
+// session can never inherit the silence routing: the token must match the run the reducer is playing for.
+let _silenceRunToken = null;
+
 function showTodayMessage(body, notifData) {
+  const _type = notifData?.type;
+  // (1) THE GUARD — an alarm is live: a check-in message must never paint over it. This is the defect
+  // the owner saw (countdown card and message thread sharing the screen). _alarmFlowActive already
+  // encodes "the alarm owns this screen"; this path used to CLEAR it and paint anyway.
+  if (_alarmFlowActive) {
+    console.log('[010] proactive message suppressed — alarm owns the screen (type=' + _type + ')');
+    return;
+  }
+  // (2) THE DISCARD — the contact this belongs to was resolved by an alarm.
+  // Reminders are unambiguous: reminder_1/reminder_2 exist ONLY to chase an unanswered scheduled
+  // contact, so once that contact is resolved they are stale BY CONSTRUCTION and can never become
+  // valid again. Drop them however late they flush.
+  // A scheduled_contact is deliberately NOT dropped here — it opens a NEW cycle, which the captain's
+  // boundary says must arrive untouched. Its own in-alarm case is already covered by the guard above.
+  // The asymmetry is intentional and it errs the safe way: the worst case is a member seeing one stale
+  // greeting, never a real contact being hidden from them.
+  if (_contactResolvedByAlarm && (_type === 'reminder_1' || _type === 'reminder_2')) {
+    console.log('[010] stale reminder discarded — contact already resolved by an alarm (type=' + _type + ')');
+    return;
+  }
+  if (_type === 'scheduled_contact') _contactResolvedByAlarm = false;   // new cycle — the slate clears
   _alarmFlowActive = false;  // a proactive message now owns the Today screen — OKAY arms normally
   if (ALARM_TIER2_MESSAGE_TAKEOVER) alarmSurfaceTakeover('message');   // tier 2: don't let a reply-awaiting message hide behind a mirror screen
   hideOrb();
@@ -1857,6 +2450,16 @@ async function handleEscalationComplete(data) {
   if (_saState.joinPhase) { console.log('[009] escalation_complete card suppressed — join-phase owns the terminal'); return; }
   const savedState = await getPreference('escalation_state');
   if (savedState !== 'active') return; // belt (subordinate to the verdict above): user already dismissed
+  // Feature 010 — member-cancelled: neither terminal card is true (nobody was reached, nobody was exhausted).
+  // The member acted deliberately and the local cancel path already returned them to rest, so close quietly:
+  // restore volume, release the wake-lock, clear state. No card.
+  if (data && data.outcome === 'cancelled') {
+    _restoreVolumeNow();
+    try { Capacitor.Plugins.KeepAwake.allowSleep(); } catch (e) {}
+    _hideStopControl();
+    await setPreference('escalation_state', 'idle');
+    return;
+  }
   _restoreVolumeNow();   // 009 Story 4 (R-009-5/T019) — a genuine escalation terminal (ack OR exhausted) → restore prior volume
   await setPreference('escalation_state', 'terminal');
   // Persist the outcome + name alongside 'terminal' so a reopen WHILE THE TERMINAL STILL HOLDS restores the
@@ -1986,6 +2589,22 @@ function initTodayActions() {
   // US3 — Orb as summon trigger (FR-002 seam: orb calls summonHelp, no bridge logic here)
   // pointer-events on the core are controlled via CSS (.orb--btn-on) — only tappable when toggle on
   document.querySelector('#orb-backdrop-system .orb-backdrop-core').addEventListener('click', async () => {
+    // RULED (captain, 2026-07-19): THE ORB TAKES NO INPUT BENEATH A LIVE SURFACE.
+    // The orb stayed tappable underneath whatever was drawn over it, so a tap aimed at a countdown —
+    // or at nothing at all — reached the orb behind and raised a help alert. Owner hit this live on
+    // 19 Jul: tapping the middle of a stuck "calling your contacts" screen summoned a fresh alarm.
+    // It is also the likeliest real-world source of the window collision the four laws govern (the
+    // ruling's origin case was "a screen-wake tap opened a button window 28s before a silence alarm").
+    //
+    // Reuses _alarmOwnsScreen() — the SAME predicate the back gesture already absorbs on, rather than
+    // a second authority that could drift from it (the RESOLVED_STATUSES lesson: two lists is how this
+    // bug class recurs). It is DOM/state-derived and biased safe: unreadable state reads as live.
+    //
+    // Deliberately NOT gated on _alarmFlowActive, which is also true on TERMINAL cards. A member whose
+    // escalation ended "nobody could be reached" must still be able to summon again from the orb —
+    // blocking that would make a help press silent, which feature 005 forbids. A terminal is a settled
+    // surface, not a live one; the ruling says beneath a LIVE surface, and this is that line.
+    if (await _alarmOwnsScreen()) return;
     if (!bridgeAttempt || bridgeAttempt.state === 'idle') {
       await _startHelpSequence('orb');
     }
@@ -2156,6 +2775,8 @@ function initSettings() {
   // Local-mirror step 3 — Schedule opens the native full-screen editor (Phase A: Standard), not the web dashboard.
   const _btnSchedule = document.getElementById('btn-schedule');
   if (_btnSchedule) _btnSchedule.addEventListener('click', () => { overlay.classList.add('hidden'); openScheduleScreen(); });
+  const _btnCancelWindow = document.getElementById('btn-cancel-window');   // Feature 010 — open the cancel-window picker
+  if (_btnCancelWindow) _btnCancelWindow.addEventListener('click', () => { overlay.classList.add('hidden'); openCancelWindowScreen(); });
   // Local-mirror step 5 — Activity log opens the native read-only Service history screen (not the web dashboard).
   const _btnLogs = document.getElementById('btn-logs');
   if (_btnLogs) _btnLogs.addEventListener('click', () => { overlay.classList.add('hidden'); openLogsScreen(); });
@@ -3329,15 +3950,25 @@ function _saOnStarted(sig) {
   _saPlayHandover();
 }
 
-// Play the Iona handover FULLY, then either the attempt that arrived during it (pendingAttempt) or settle into
+// Play the handover FULLY, then either the attempt that arrived during it (pendingAttempt) or settle into
 // 'ready' to await the first advance. Shared by the real 'started' and the killed-state synthesis below.
+//
+// AMENDMENT 11 (owner, 19 Jul) — the sweep-start line is TRIGGER-SELECTED. Iona's "your request for help
+// has been received" is FALSE on a silence escalation: nothing was requested, the member simply could not
+// be reached. It stays BYTE-UNTOUCHED on the reactive/button paths, where it is true. On a silence run the
+// flip plays Oran instead: "Oran here, just to let you know I am now calling your contacts." — number-free,
+// no re-introduction (the activation line introduced him seconds earlier), and preceded by the attention
+// tone so the announcement is not sprung on the member cold.
 function _saPlayHandover() {
   const e = _saBump();
   _saStopLoops();
+  const silence = !!(_silenceRunToken && _saState.runToken && _silenceRunToken === _saState.runToken);
   (async () => {
     await _saClipBoundary();                              // ATOMIC — queue behind any in-flight spoken line
     if (e !== _saEpoch) return;
-    await _saPlayOnce(SA_STATIC_BASE + 'handover.mp3');   // never cut by an advance (an advance defers to pendingAttempt)
+    if (silence) await playAttentionTone();               // Amendment 11 — the tone precedes the announcement
+    if (e !== _saEpoch) return;
+    await _saPlayOnce(SA_STATIC_BASE + (silence ? 'handover_silence.mp3' : 'handover.mp3'));   // never cut by an advance
     if (e !== _saEpoch) return;                            // superseded (terminal / newer run) during the handover
     if (_saState.phase === 'handover' && _saState.pendingAttempt) {
       const p = _saState.pendingAttempt; _saState.pendingAttempt = null;
@@ -3508,12 +4139,30 @@ function _saOnAmd(sig) {
   })();
 }
 
+// Feature 010 — the member cancelled. Silence the narration LOCALLY at the tap (don't wait for the
+// escalation_complete round-trip, which can lag or be lost). Respects the ATOMIC-CLIP RULING: no spoken
+// clip is cut mid-play — we bump the epoch so no NEW line starts, cut only the preemptible bed, and mark
+// the reducer terminal/absorbing so nothing non-terminal can sound again.
+function _saCancelledLocal() {
+  try {
+    _saState.phase = 'terminal';
+    _saState.terminal = true;
+    _saState.pendingAttempt = null;
+    _saBump();
+    _saStopLoops();
+  } catch (e) { /* best-effort silence — never block the cancel */ }
+}
+
 function _saOnComplete(sig) {
   _saState.phase = 'terminal';
   _saState.terminal = true;     // ABSORBING from here — nothing non-terminal may sound again
   _saState.pendingAttempt = null;
   const e = _saBump();
   _saStopLoops();   // cut the ring/bed; a SPOKEN in-flight line finishes (ATOMIC — terminals queue to outcome lines)
+  // Feature 010 — the MEMBER cancelled. No contact was reached and nobody was exhausted, so BOTH terminal
+  // lines would lie ("I've reached {name}" / "nobody could help"). The member performed the action and knows
+  // the outcome — the honest close is silence. Loops are already cut above; just stop here.
+  if (sig && sig.outcome === 'cancelled') return;
   (async () => {
     await _saClipBoundary();
     if (e !== _saEpoch) return;
@@ -3777,6 +4426,14 @@ function signalAudioStarted(data) {
 }
 function signalAudioAdvance(data) {
   if (!data) return;
+  // Feature 010 P3c — THE FLIP. The first advance of a run is the engine's own word that the sweep has
+  // started, which is the only trustworthy moment to replace the activation screen with Oran's Promise
+  // and release the deferred Signal audio. Runs BEFORE escalationScreenAdvance/_saApply so the reducer
+  // and the 007 screen mirror both receive their 'started' before this first 'advance' — the order they
+  // require. Flips on ANY advance, not just phase 'dialing': if a dialing push were lost and only the
+  // 'ended' arrived, flipping is still the truthful reading (contacts ARE being reached), and stranding
+  // the member on a spent countdown would not be.
+  if (_silenceActivation) _silenceFlipToPromise(data);
   escalationScreenAdvance(data);   // 007 screen mirror — EVERYONE (channel-honest per-contact chips)
   // 009 (R-009-20/21) — mode-blind reaching: the reducer runs for BOTH modes (see signalAudioStarted).
   const index = parseInt(data.contact_index ?? '-1', 10);
@@ -3803,6 +4460,10 @@ function signalAudioAdvance(data) {
   });
 }
 function signalAudioComplete(data) {
+  // Feature 010 P3c — a run can resolve while the activation screen is still up (an SMS-side cancel, or a
+  // sweep that started and finished inside the backstop window). Drop the screen's timers/listener so
+  // nothing fires over the terminal; no flip — handleEscalationComplete owns the terminal render.
+  if (_silenceActivation) { _silenceTeardown(); _silenceActivation = null; }
   escalationScreenComplete(data);   // 007 screen mirror — EVERYONE (resolve the acknowledged contact to "Reached")
   // 009 (R-009-20/21) — mode-blind terminal: the reducer runs for BOTH modes. A hands-free member only ever
   // receives escalation_complete with outcome 'exhausted' (the accept path holds → bridge_join_confirmed, it
@@ -4210,16 +4871,52 @@ async function _consumeFlicLaunchSummon() {
 // Routes to showEscalationActiveState (which takes over the alarm-surface arbiter), NOT a fresh cancel
 // window: the escalation already started server-side. Mirrors the existing escalation_started push
 // handler and _consumeFlicLaunchSummon.
+// Feature 010 P3c — below this, a resumed window is not worth showing: a 2-second countdown reads as
+// broken rather than generous, and the member is better served by the Promise screen's Phase-2 control,
+// which reaches the SAME endpoint and lets the server resolve in-window vs late off the real row status.
+// So nothing is lost by landing there — only the countdown is dropped.
+const SILENCE_RESUME_FLOOR_SECONDS = 3;
+
 async function _consumeEscalationAlarm() {
   const { Flic } = Capacitor.Plugins;
   if (!Flic || !Flic.consumePendingEscalationAlarm) return;
   try {
     const r = await Flic.consumePendingEscalationAlarm();
-    if (r && r.pending) {
-      setPreference('escalation_state', 'active');
-      setPreference('escalation_state_ts', String(Date.now()));
-      showEscalationActiveState();
+    if (!r || !r.pending) return;
+    const d = r.data || {};
+    // Feature 010 P3c — a killed-app landing for a no-response activation. The member has been looking at
+    // a locked, ringing phone and has NO idea how much of their window they slept through, so the screen
+    // must show only what genuinely remains: reconstruct the engine's absolute deadline from the values it
+    // sent (run_ts + device_lead_in + cancel_window) rather than restarting a full window, which would
+    // promise time the engine will not honour.
+    //
+    // CLOCK NOTE: run_ts is the SERVER's epoch ms and Date.now() is the DEVICE's, so a skewed device clock
+    // skews this arithmetic. It is bounded deliberately — clamped to at most the full hold, so the worst
+    // case is a countdown that is too SHORT (the member lands on the Promise early and still has the
+    // two-step control) and never one that invents time. The authoritative correction remains the engine's
+    // own advance push, which flips the screen whatever this countdown believes.
+    if (d.trigger === 'no_response' && d.cancel_window) {
+      const win = _cwClamp(d.cancel_window);
+      const lead = parseInt(d.device_lead_in ?? '0', 10) || 0;
+      const runTs = parseInt(d.run_ts ?? '0', 10) || 0;
+      const remainingMs = runTs ? ((runTs + (lead + win) * 1000) - Date.now()) : 0;
+      // FLOOR, not ceil — the rounding direction is load-bearing. Rounding UP hands the countdown up to
+      // an extra second, which pushes its zero PAST the engine's dial deadline: the member would see time
+      // still on the clock while their contacts were already being rung. Measured on the 19 Jul run, ceil
+      // turned a comfortable ~0.8s of margin into 0.01s by rounding 27.16s up to 28. Flooring spends the
+      // fraction instead of inventing it, so the screen always finishes a beat BEFORE the dial — the same
+      // safe direction the ratified 14s lead-in was rounded in.
+      const remaining = Math.min(lead + win, Math.floor(remainingMs / 1000));
+      if (remaining >= SILENCE_RESUME_FLOOR_SECONDS) {
+        _startSilenceActivation(d, { resumeSeconds: remaining });
+        return;
+      }
     }
+    // Member-initiated alert, a pre-010 push with no marker, or a window already spent → today's landing:
+    // the sweep is (or is about to be) running, and Oran's Promise with its Phase-2 control is the truth.
+    setPreference('escalation_state', 'active');
+    setPreference('escalation_state_ts', String(Date.now()));
+    showEscalationActiveState();
   } catch (e) {}
 }
 
@@ -6016,6 +6713,7 @@ const _BACK_SCREENS = [
   { id: 'screen-schedule',         exit: () => _scExit() },
   { id: 'screen-service-delivery', exit: () => _svExit() },
   { id: 'screen-logs',             exit: () => _lgExit() },
+  { id: 'screen-cancel-window',    exit: () => _cwExit() },   // Feature 010 — back/swipe parity with the others
 ];
 
 function _isVisible(id) {

@@ -2339,3 +2339,50 @@ body[data-text-size="xl"]    .cm-row-2 { flex-direction: column; gap: 0; }
   font: inherit; font-size: var(--fs-row-label); font-weight: 600; cursor: pointer;
 }
 .cm-pick:active { background: color-mix(in srgb, var(--teal) 20%, transparent); }
+
+/* Top-gap fix (owner, on-device 2026-07-18). .screen centres its content by default, which pushes these
+   full-screen pages down. #screen-contacts / #screen-schedule / #screen-logs already carry this override;
+   #screen-service-delivery never got it (same reported gap) and the new cancel-window page inherited the
+   same miss. Aligned to the contacts page as the reference. */
+#screen-cancel-window,
+#screen-service-delivery { justify-content: flex-start; align-items: stretch; padding: 0; }
+
+/* ── Feature 010 — cancel-window spinny picker (net-new; needs on-device snap tuning) ── */
+.settings-card-cw-val { margin-left: auto; font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 14px; color: var(--teal); font-weight: 600; padding-right: 8px; }
+.cw-wheel-wrap { position: relative; height: 200px; margin: 8px auto 4px; max-width: 200px; }
+.cw-wheel-band { position: absolute; left: 0; right: 0; top: 78px; height: 44px;
+  border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--teal) 9%, transparent); border-radius: 10px; pointer-events: none; }
+.cw-wheel { height: 200px; overflow-y: auto; scroll-snap-type: y mandatory; padding: 78px 0;
+  -ms-overflow-style: none; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+          mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.cw-wheel::-webkit-scrollbar { display: none; }
+.cw-item { height: 44px; scroll-snap-align: center; display: flex; align-items: center;
+  justify-content: center; gap: 6px; font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 26px; font-weight: 700; color: var(--text-muted); opacity: .5;
+  transition: opacity .12s, color .12s; cursor: pointer; }
+.cw-item.sel { color: var(--teal-glow); opacity: 1; }
+.cw-item .cw-unit { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
+/* ── Feature 010 — Phase-2 cancel control (overlays the locked nav; calm, deliberately NOT a CTA) ── */
+.today-nav.nav-locked { pointer-events: none; opacity: .35; }
+/* Owner on-device finding: the bar must COMPLETELY hide the nav beneath, not just dim it — a half-visible
+   locked nav reads as a broken screen. Double height + an opaque ground + bottom:0 so it covers the nav row
+   outright. min-height is the real lever (padding alone left the tabs peeking). */
+.alarm-stop { position: fixed; left: 0; right: 0; bottom: 0; z-index: 130; padding: 0 12px 12px; }
+.alarm-stop-bar { display: flex; align-items: center; justify-content: center; width: 100%;
+  min-height: 96px; padding: 14px; border-radius: 16px;
+  background: #0C1C30; border: 2px solid rgba(224,151,58,.5); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 700; letter-spacing: .03em; text-align: center;
+  cursor: pointer; box-shadow: 0 -10px 30px -10px rgba(0,0,0,.55); }
+.alarm-stop-confirm { background: #0C1C30; border: 2px solid rgba(224,151,58,.5);
+  border-radius: 16px; padding: 15px; display: flex; flex-direction: column; gap: 12px; text-align: center;
+  box-shadow: 0 -14px 34px -12px rgba(0,0,0,.7); }
+.alarm-stop-q { font-size: 15px; font-weight: 700; color: var(--text); }
+.alarm-stop-btns { display: flex; gap: 10px; }
+.alarm-stop-btns button { flex: 1; padding: 14px; border-radius: 12px; font: inherit; font-size: 13px;
+  font-weight: 700; letter-spacing: .03em; border: none; cursor: pointer; }
+.alarm-stop-yes { background: var(--signal-well, #2BB682); color: #06231A; }
+.alarm-stop-keep { background: none; border: 1.5px solid var(--border-soft); color: var(--text); }

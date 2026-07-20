@@ -142,6 +142,21 @@
 
     <button id="btn-done" class="btn-alarm-done hidden">↩ Return to Iona</button>
 
+    <!-- Feature 010 — Phase-2 cancel control: overlays the LOCKED nav on Oran's Promise. Two-step
+         (tap → confirm); hidden the instant a contact presses 1. Copy is PLACEHOLDER (owner-reserved). -->
+    <div id="alarm-stop-control" class="alarm-stop hidden">
+      <button type="button" id="btn-stop-calling" class="alarm-stop-bar">Stop calling your contacts</button>
+      <div id="alarm-stop-confirm" class="alarm-stop-confirm hidden">
+        <div class="alarm-stop-q">Stop calling your contacts?</div>
+        <div class="alarm-stop-btns">
+          <!-- Amendment 7 — step-2 label ruled plain "Confirm"; the "Yes, stop / Keep calling" pair is
+               the owner's copy-pass candidate. Placeholder either way. -->
+          <button type="button" id="btn-stop-yes" class="alarm-stop-yes">Confirm</button>
+          <button type="button" id="btn-stop-keep" class="alarm-stop-keep">Keep calling</button>
+        </div>
+      </div>
+    </div>
+
     <nav class="today-nav">
       <button class="nav-tab nav-tab--active" id="nav-today">
         <i class="ti ti-sun"></i>
@@ -376,6 +391,11 @@
             <span class="settings-card-label">Schedule</span>
             <i class="ti ti-chevron-right settings-card-chevron" aria-hidden="true"></i>
           </button>
+          <button id="btn-cancel-window" class="settings-card account-card">
+            <span class="settings-card-tile"><i class="ti ti-clock-pause" aria-hidden="true"></i></span>
+            <span class="settings-card-label">Cancel window</span>
+            <i class="ti ti-chevron-right settings-card-chevron" aria-hidden="true"></i>
+          </button>
           <button id="btn-contacts" class="settings-card account-card">
             <span class="settings-card-tile"><i class="ti ti-users" aria-hidden="true"></i></span>
             <span class="settings-card-label">Contacts</span>
@@ -472,6 +492,29 @@
   </div>
 
   <!-- Local-mirror step 3 (Phase A — Standard) — full-screen Schedule editor, entered from Settings ▸ Schedule. -->
+  <div id="screen-cancel-window" class="screen hidden">
+    <div class="sc-scroll">
+      <div class="sc-head">
+        <button id="btn-cw-back" class="sc-back" aria-label="Back">
+          <i class="ti ti-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="sc-head-text">
+          <h2 class="screen-title">Cancel window</h2>
+          <p class="sc-sub">How long the alarm sounds before your contacts are called.</p>
+        </div>
+      </div>
+      <div class="sc-card">
+        <div class="sc-card-h">Seconds to cancel</div>
+        <div class="cw-wheel-wrap">
+          <div class="cw-wheel-band" aria-hidden="true"></div>
+          <div class="cw-wheel" id="cw-wheel"></div>
+        </div>
+        <p class="sc-note">Gives you time to stop a false alarm before your contacts are called. 5 to 60 seconds; the default is 10.</p>
+      </div>
+      <button type="button" id="btn-cw-done" class="sc-footer-back">Back to settings</button>
+    </div>
+  </div>
+
   <div id="screen-schedule" class="screen hidden">
     <div class="sc-scroll">
       <div class="sc-head">
