@@ -1925,16 +1925,40 @@ async function _startHelpSequence(triggerSource) {
   //     flurry could slip through that window, so this closes it (a flurry still resolves to ONE sequence).
   // Both flags are synchronous, so the check-and-set completes before any await yields.
   //
-  // COLLISION A (captain ruling 19 Jul) — DELIBERATELY STILL AN ABSORB, not an oversight. A help press
-  // during a live SILENCE window lands here and is swallowed. That satisfies law 1 but not law 2: a
-  // silence escalation is always Oran's Signal (Amendment 4), so a hands-free member pressing for help
-  // here is silently denied their bridge. The ruled fix is to convert the existing window to
-  // member-initiated AND tell the engine to stand its hold down — and that second half IS the
-  // engine-side collapse, which the captain gated behind the restart spike.
-  // Converting locally WITHOUT the collapse would be strictly worse than the bug: the silence window
-  // owns no deadline, so at zero it would commit a member escalation while the engine's hold dialled
-  // its own — manufacturing the two-run failure on a path that does not have it today. Coupled halves
-  // deploy together. So A stays absorbed until the collapse lands with it.
+  // COLLISION A (captain ruling 19 Jul; BUILT 20 Jul, coupled to the engine-side collapse) — a help
+  // press during a live SILENCE window is now CONVERTED, not swallowed.
+  //
+  // The old absorb satisfied law 1 by accident and broke law 2: a silence escalation is always Oran's
+  // Signal (Amendment 4), so a hands-free member pressing for help here was silently denied their
+  // bridge. The press is a deliberate act and must be honoured whole.
+  //
+  // NO SECOND WINDOW (law 1). The countdown already on screen keeps running, on the engine's adopted
+  // deadline; nothing is re-rendered, no second siren plays, no second timer starts. What changes is
+  // what happens at the END of it — the run becomes member-initiated, so the reactive mode and the
+  // bridge entitlement apply.
+  //
+  // THIS IS THE HALF THAT WAS HELD. Converting locally without the collapse would have been strictly
+  // worse than the bug: at zero the device would commit a member escalation while the engine's hold
+  // dialled its own. The summon POST below reaches _collapse_hold_for_summon, which stands the hold
+  // down BEFORE any dispatch, so exactly one run reaches the contacts. Coupled halves — this branch and
+  // the collapse ship in the same deploy, or neither does.
+  if (_summonCountdownActive && _silenceActivation && !_summonEvaluating) {
+    console.log('[ALARM] collision A — help press during a silence window: converting to member-initiated');
+    // Clear the silence marker so Amendment 11's flip selects Iona's line, not Oran's silence line:
+    // the member asked for this, it is no longer a silence run.
+    _silenceRunToken = null;
+    _silenceActivation.memberInitiated = true;
+    // Tell the engine. The summon row is what triggers the collapse server-side; the ORIGINAL run token
+    // is carried forward there, so `_activeRunToken` stays valid and the member's one cancel still
+    // reaches the row (law 3).
+    //
+    // POSTED DIRECTLY, NOT via logBridgeEvent(): that helper returns early when `bridgeAttempt` is null,
+    // and during a silence window it IS null (no press flow has created one). Routing through it would
+    // have no-op'd silently and the collapse would never have fired — the conversion would look built
+    // and do nothing. Caught before deploy.
+    _postSummonForCollapse(triggerSource || 'help_control');
+    return;
+  }
   if (_summonCountdownActive || _summonEvaluating) return;
   _summonEvaluating = true;
   try {
@@ -2190,9 +2214,14 @@ async function _startSilenceActivation(data, opts) {
   const _win = _cwClamp(data && data.cancel_window);
   const _lead = parseInt((data && data.device_lead_in) ?? '0', 10) || 0;
   const _runTs = parseInt((data && data.run_ts) ?? '0', 10) || 0;
+  // (c) The engine's PUSH-LATENCY BUDGET, carried on the wire. The engine's hold is
+  // lead_in + window + budget, so the deadline must include it or the device's zero lands `budget`
+  // seconds EARLY — the member would watch the countdown finish and then sit through 8 silent seconds
+  // before anything happened. Absent (pre-graft engine) → 0, which reproduces the old arithmetic exactly.
+  const _budget = parseInt((data && data.latency_budget) ?? '0', 10) || 0;
   // The engine's dial moment, in device-clock terms. Null when run_ts is absent (a pre-010 or malformed
   // push) — then we fall back to the member's window, which is the old behaviour and no worse than it was.
-  const _deadlineAt = _runTs ? _runTs + (_lead + _win) * 1000 : null;
+  const _deadlineAt = _runTs ? _runTs + (_lead + _win + _budget) * 1000 : null;
 
   /* ── COLLISION B — the observed bug (captain ruling 19 Jul, laws 1 and 3) ───────────────────────
      A member-raised BUTTON window is already live on screen: `_summonCountdownActive` is true but
@@ -2225,14 +2254,18 @@ async function _startSilenceActivation(data, opts) {
   // Remaining per the engine, clamped to the full hold so device/server clock skew can shorten the
   // countdown but never invent time, and FLOORED so the fraction is spent rather than handed out.
   const _remaining = () => (_deadlineAt
-    ? Math.max(0, Math.min(_lead + _win, Math.floor((_deadlineAt - Date.now()) / 1000)))
+    ? Math.max(0, Math.min(_lead + _win + _budget, Math.floor((_deadlineAt - Date.now()) / 1000)))
     : _win);
   const seconds = resumeSeconds != null ? resumeSeconds : (_deadlineAt ? _remaining() : _win);
   // Too little left to be a window at all — a badly delayed push, where the engine has dialled or is about
   // to. Opening a 2-second countdown here would offer a cancel that cannot be honoured; the sweep screen
   // is the truth. Mark the run as silence-triggered first so Amendment 11 still selects Oran's line, then
   // let the reducer's own no-'started'-seen synthesis narrate it off the incoming advance.
-  if (seconds < SILENCE_RESUME_FLOOR_SECONDS) {
+  if (seconds > 0 && seconds < SILENCE_SHORT_REMAINDER_DIAGNOSTIC_SECONDS) {
+    console.log(`[ALARM] short remainder — ${seconds}s of a ${_win}s window survived delivery latency ` +
+                `(run_ts ${_runTs}); showing it anyway per the no-floor ruling`);
+  }
+  if (seconds <= 0) {
     _silenceRunToken = (data && data.run_token) || null;
     setPreference('escalation_state', 'active');
     setPreference('escalation_state_ts', String(Date.now()));
@@ -3102,6 +3135,30 @@ function logBridgeEvent(eventType, payload = {}) {
     console.error('[Bridge] EventLog write failed:', eventType, err);
     return null;
   }));
+}
+
+// COLLISION A (feature 010) — summon POST with NO bridgeAttempt.
+// logBridgeEvent() above requires one and returns early without it. A help press during a SILENCE window
+// has no bridgeAttempt (the press is being converted, not starting a fresh flow), so it needs its own
+// minimal poster. Sends only what the BRIDGE_SUMMONED branch actually reads: member id + trigger_source.
+// Best-effort by design — a failed POST must never disturb the countdown already on screen. The cost of
+// failure is bounded and understood: no collapse, so the engine's hold dials on its own deadline, which
+// is exactly today's behaviour (law 4). It degrades to the bug, never past it.
+function _postSummonForCollapse(triggerSource) {
+  return getPreference('member_airtable_id').then((memberId) => {
+    if (!memberId) { console.log('[ALARM] collision A — no member_airtable_id; no collapse'); return null; }
+    return fetch(`${STATUS_BASE}/bridge/log-event`, {
+      method: 'POST', headers: NGROK_HEADERS,
+      body: JSON.stringify({
+        event_type: 'BRIDGE_SUMMONED',
+        member_airtable_id: memberId,
+        detail: JSON.stringify({ trigger_source: triggerSource }),
+      }),
+    }).then(r => r.ok ? r.json().catch(() => null) : null);
+  }).catch((e) => {
+    console.log('[ALARM] collision A — summon POST failed; engine keeps its hold (law 4):', e);
+    return null;
+  });
 }
 
 // PHASE 6 (009) — the parallel bridge sweep is DELETED. Reaching is the ENGINE (run_escalation) for BOTH
@@ -4871,11 +4928,18 @@ async function _consumeFlicLaunchSummon() {
 // Routes to showEscalationActiveState (which takes over the alarm-surface arbiter), NOT a fresh cancel
 // window: the escalation already started server-side. Mirrors the existing escalation_started push
 // handler and _consumeFlicLaunchSummon.
-// Feature 010 P3c — below this, a resumed window is not worth showing: a 2-second countdown reads as
-// broken rather than generous, and the member is better served by the Promise screen's Phase-2 control,
-// which reaches the SAME endpoint and lets the server resolve in-window vs late off the real row status.
-// So nothing is lost by landing there — only the countdown is dropped.
-const SILENCE_RESUME_FLOOR_SECONDS = 3;
+// Feature 010 — THE FLOOR IS GONE (captain ruling 20 Jul, item 2). It previously dropped any resumed
+// window shorter than 3s on the grounds that "a 2-second countdown reads as broken rather than generous".
+// Ruled otherwise, and the ruling is right: 2.6 SECONDS IS A CANCEL OPPORTUNITY. A member who taps in
+// that window and wins has genuinely stopped their contacts being called; a member who loses the race
+// gets the honest late-cancel path (contacts reached, then stood down), which is a real and different
+// outcome — not a failure. Dropping the countdown decided FOR them that their tap was not worth
+// offering. The screen now shows the true remainder however short.
+// A window is only skipped when there is genuinely none left (remaining <= 0), which is not a floor but
+// the plain fact that the engine has already dialled.
+// This threshold now only makes the tail MEASURABLE — the provisional 8s latency budget is to be
+// revisited from a real distribution at close-out, and this is what feeds it.
+const SILENCE_SHORT_REMAINDER_DIAGNOSTIC_SECONDS = 5;
 
 async function _consumeEscalationAlarm() {
   const { Flic } = Capacitor.Plugins;
@@ -4899,15 +4963,20 @@ async function _consumeEscalationAlarm() {
       const win = _cwClamp(d.cancel_window);
       const lead = parseInt(d.device_lead_in ?? '0', 10) || 0;
       const runTs = parseInt(d.run_ts ?? '0', 10) || 0;
-      const remainingMs = runTs ? ((runTs + (lead + win) * 1000) - Date.now()) : 0;
+      const budget = parseInt(d.latency_budget ?? '0', 10) || 0;   // (c) — same arithmetic as foreground
+      const remainingMs = runTs ? ((runTs + (lead + win + budget) * 1000) - Date.now()) : 0;
       // FLOOR, not ceil — the rounding direction is load-bearing. Rounding UP hands the countdown up to
       // an extra second, which pushes its zero PAST the engine's dial deadline: the member would see time
       // still on the clock while their contacts were already being rung. Measured on the 19 Jul run, ceil
       // turned a comfortable ~0.8s of margin into 0.01s by rounding 27.16s up to 28. Flooring spends the
       // fraction instead of inventing it, so the screen always finishes a beat BEFORE the dial — the same
       // safe direction the ratified 14s lead-in was rounded in.
-      const remaining = Math.min(lead + win, Math.floor(remainingMs / 1000));
-      if (remaining >= SILENCE_RESUME_FLOOR_SECONDS) {
+      const remaining = Math.min(lead + win + budget, Math.floor(remainingMs / 1000));
+      if (remaining > 0 && remaining < SILENCE_SHORT_REMAINDER_DIAGNOSTIC_SECONDS) {
+        console.log(`[ALARM] short remainder on cold landing — ${remaining}s of a ${win}s window ` +
+                    `(run_ts ${runTs}); showing it anyway per the no-floor ruling`);
+      }
+      if (remaining > 0) {
         _startSilenceActivation(d, { resumeSeconds: remaining });
         return;
       }
