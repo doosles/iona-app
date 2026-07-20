@@ -1942,6 +1942,7 @@ async function _startHelpSequence(triggerSource) {
   // dialled its own. The summon POST below reaches _collapse_hold_for_summon, which stands the hold
   // down BEFORE any dispatch, so exactly one run reaches the contacts. Coupled halves — this branch and
   // the collapse ship in the same deploy, or neither does.
+  if (_summonCountdownActive && _silenceActivation && _silenceActivation.memberInitiated) return;
   if (_summonCountdownActive && _silenceActivation && !_summonEvaluating) {
     console.log('[ALARM] collision A — help press during a silence window: converting to member-initiated');
     // Clear the silence marker so Amendment 11's flip selects Iona's line, not Oran's silence line:
