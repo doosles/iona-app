@@ -114,6 +114,15 @@ public class FlicPlugin extends Plugin {
         one-shot like {@link #pendingLaunchSummon}, so a WebView reload / later cold open can't replay it. */
     private static volatile boolean pendingEscalationAlarm = false;
 
+    /** Feature 010 P3c — the alarm push's own data map, stashed alongside {@link #pendingEscalationAlarm}
+        and handed to JS on consume. Needed because a killed-app landing has NO other way to learn which
+        KIND of alarm woke it: a no-response activation (the member's cancel window may still be open —
+        raise the activation screen) or a member-initiated alert (contacts are already being reached —
+        raise Oran's Promise). Carries run_ts + cancel_window + device_lead_in, from which JS reconstructs
+        the engine's ABSOLUTE dial deadline and shows only the time that genuinely remains. Cleared with
+        the flag in {@link #consumePendingEscalationAlarm} so a WebView reload cannot replay it. */
+    private static volatile java.util.Map<String, String> pendingEscalationAlarmData = null;
+
     /**
      * The chosen summon gesture — "short" (DEFAULT: a single immediate press, the telecare-familiar
      * muscle memory older users already have from pendants/pull-cords) or "hold" (opt-in, accident-
@@ -610,7 +619,16 @@ public class FlicPlugin extends Plugin {
         an FSI launch is denied (the same floor the physical press relies on). Takes an EXPLICIT Context
         because the FCM service can run in a cold process where {@link #appContext} was never captured. */
     static void fireEscalationAlarmFullScreenIntent(Context ctx) {
+        fireEscalationAlarmFullScreenIntent(ctx, null);
+    }
+
+    /** Feature 010 P3c overload — same ring, plus the push's data map stashed for the JS landing so a
+        cold-woken app can tell an open cancel window from a running sweep. `data` may be null (the
+        no-arg overload above, and any caller without a payload): JS then falls back to today's
+        behaviour exactly. Stashed BEFORE the notification is raised so it can never be consumed empty. */
+    static void fireEscalationAlarmFullScreenIntent(Context ctx, java.util.Map<String, String> data) {
         if (ctx == null) return;
+        if (data != null) pendingEscalationAlarmData = new java.util.HashMap<>(data);
         TwilioVoicePlugin.applyMaxVolume(ctx);   // 009 Story 4 (R-009-8/T018) — cold-killed proactive escalation: loud from word one
         Intent launch = new Intent(ctx, MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -646,8 +664,14 @@ public class FlicPlugin extends Plugin {
     @PluginMethod
     public void consumePendingEscalationAlarm(PluginCall call) {
         boolean pending = pendingEscalationAlarm;
+        java.util.Map<String, String> data = pendingEscalationAlarmData;
         pendingEscalationAlarm = false;
-        call.resolve(new JSObject().put("pending", pending));
+        pendingEscalationAlarmData = null;   // cleared WITH the flag — exactly-once, no replay on reload
+        JSObject res = new JSObject().put("pending", pending);
+        JSObject d = new JSObject();
+        if (data != null) for (java.util.Map.Entry<String, String> e : data.entrySet()) d.put(e.getKey(), e.getValue());
+        res.put("data", d);   // always present (possibly empty) so JS never branches on undefined
+        call.resolve(res);
     }
 
     private static void emitConnection(Flic2Button b, String state) {

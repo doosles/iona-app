@@ -48,7 +48,10 @@ public class TwilioFirebaseMsgService extends MessagingService {
             String type = remoteMessage.getData().get("type");
             if (FlicPlugin.ESCALATION_ALARM_TYPE.equals(type) && !FlicPlugin.isAppForeground()) {
                 Log.d("TwilioFCM", "escalation_started while not foreground — raising native full-screen alarm");
-                FlicPlugin.fireEscalationAlarmFullScreenIntent(getApplicationContext());
+                // Feature 010 P3c — hand the push's data through so the JS landing can tell a no-response
+                // activation (cancel window possibly still open) from a member-initiated alert. Without it
+                // a cold-woken app has only a bare boolean and must assume the sweep is already running.
+                FlicPlugin.fireEscalationAlarmFullScreenIntent(getApplicationContext(), remoteMessage.getData());
             } else {
                 super.onMessageReceived(remoteMessage);
             }
