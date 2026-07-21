@@ -825,6 +825,9 @@ function getCancelWindowSeconds(config) {
 
 function showCancelWindowState() {
   _alarmFlowActive = true;
+  _disarmHelpButton();   // ruling 4 — the armed state never outlives the screen it belongs to. Belt to
+                         // the handler's own disarm: this window can also be raised by the orb, the Flic
+                         // or a silence push while the help button happens to sit armed behind it.
   alarmSurfaceTakeover('cancel-window');   // sharpest case — the countdown MUST be seen to stop a false trigger
   hideOrb();
   document.getElementById('today-empty').classList.add('hidden');
@@ -1286,6 +1289,7 @@ async function _escalationSelfHeal() {
 
 function showAlarmIdleReset() {
   _alarmFlowActive = false;  // back to the resting Today screen — OKAY's normal plan-based visibility resumes
+  _disarmHelpButton();       // ruling 4 — return to rest returns the help button to rest with it
   _restoreVolumeNow();   // 009 Story 4 (R-009-5/T019) — catch-all: any return to resting restores prior volume
   // THE single dismissal-path clear (captain fix 2026-07-12 — "one authority over the moment"). The terminal
   // render keeps escalation_state='terminal'; it returns to idle ONLY here — the 60s auto-return, the cancel,
@@ -1975,6 +1979,12 @@ async function _startHelpSequence(triggerSource) {
     _summonEvaluating = false;
   }
 
+  // RULING 1 (21 Jul) — the activation is recorded HERE, at press, before a single sound plays and
+  // before the countdown exists. Deliberately NOT awaited: the record must never delay the siren, and
+  // the alarm is what matters — the paperwork rides alongside it. This is a PURE LOG LINE (ruling A′):
+  // it arms nothing server-side, and the law-2 collapse does not ride on it.
+  _startActivationRecord(triggerSource || 'help_control');
+
   _clearBridgeTerminalReturnTimer();  // a fresh help press cancels any pending success-terminal auto-return
   _clearEscalationSelfHealTimer();    // and any stale escalation self-heal backstop from a prior run
   _maxVolumeNow();   // 009 Story 4 (R-009-8) — FIRST act of the press: loud + speaker BEFORE siren/cancel window
@@ -2015,6 +2025,10 @@ async function _startHelpSequence(triggerSource) {
       _markContactResolvedByAlarm();   // law 3 — the one tap also answers the silence run's open contact
       await postAlarmCancel();
     }
+    // RULING 2 — the tap-cancel outcome. This resolves THIS activation's own row and nothing else; the
+    // postAlarmCancel above is the separate, unchanged channel that reaches an underlying silence hold.
+    // Two rows, two owners: the button's record here, the engine's hold row there.
+    _resolveActivation('cancelled_tap');
     showAlarmIdleReset();
   }
 
@@ -2100,6 +2114,10 @@ async function _startHelpSequence(triggerSource) {
       // member's setting, and never played anyway. Oran speaks ONCE at activation; the Signal audio
       // takes over from here.
       showEscalationActiveState();
+      // RULING 2 — the third outcome. Resolved BEFORE the commit POST so the marker already names
+      // 'escalated': if the process dies between here and the commit landing, the next launch replays
+      // THAT, not an app-close cancel. The server's wall 4 makes the late duplicate a no-op.
+      _resolveActivation('escalated');
       commitEscalation(fcmToken);
     }
   }, 1000);
@@ -2575,9 +2593,14 @@ function initTodayActions() {
     document.getElementById('btn-done').classList.remove('hidden');
   });
 
+  // RULING 4 (21 Jul) — the in-app help button is TWO-TAP to activate. First tap arms it in place;
+  // second tap raises the alarm. The orb and the Flic are UNCHANGED and still fire on one press.
   document.getElementById('btn-alert').addEventListener('click', async () => {
+    if (!_helpButtonIsArmed()) { _armHelpButton(); return; }
+    _disarmHelpButton();          // clear the armed visuals before the cancel window takes the screen
     await _startHelpSequence('help_control');
   });
+  document.getElementById('btn-alert-notnow').addEventListener('click', () => _disarmHelpButton());
 
   document.getElementById('btn-alarm-done').addEventListener('click', async () => {
     _clearBridgeTerminalReturnTimer();  // manual Return-to-Iona cancels the success-terminal auto-return
@@ -2645,6 +2668,63 @@ function initTodayActions() {
   });
 }
 
+/* ══ RULING 4 (21 Jul) — TWO-TAP ACTIVATE on the in-app help button ══════════════════════════════
+   Mockup shape A, owner-approved: the button ARMS ITSELF IN PLACE. It fills, its label names the second
+   action, and a quiet escape appears beneath it. One target that never moves — so a member who has
+   already decided is never asked to find a new button, and the confirmation is carried by the fill and
+   the wording instead of by a new surface.
+
+   WHAT THIS IS NOT: it does not touch Amendment 2's ONE-TAP CANCEL during the countdown, which stands
+   exactly as ruled. Guard the trigger, keep the escape instant — this is the trigger half. The
+   demographic objection that retired two-tap CANCEL (two taps under a 5s clock) does not transfer,
+   because there is no clock on the confirm.
+
+   Button-specific by design: the ORB stays one-tap (the deliberately-chosen fast path a member opts
+   into in settings) and the physical FLIC is untouched (harder to press by accident, and often the
+   fall-case device, where a confirm step would work against the moment it exists for).
+
+   THE ARM LAPSES SILENTLY after ARM_TIMEOUT (owner-ruled 10s, matching the cancel-window ladder's
+   default). No record, no EventLog row, no server contact: a first tap that is never confirmed IS NOT
+   AN ACTIVATION — nothing fired. Logging lapsed arms would flood the record and, worse, would turn the
+   false-tap noise this two-tap exists to absorb into a source of rows. Recording begins at the
+   confirming second tap, exactly as ruling 1 says. The lapse is a visual settle, not a message: a
+   message would imply something happened, and nothing did. ── */
+const HELP_BUTTON_ARM_TIMEOUT_MS = 10000;
+const HELP_BUTTON_REST_LABEL  = 'I NEED<br>HELP';
+const HELP_BUTTON_ARMED_LABEL = 'TAP AGAIN<br>TO GET HELP';   // PLACEHOLDER copy — owner-reserved.
+                                                              // Names the ACTION, not "confirm": a member
+                                                              // should not have to recall what the first
+                                                              // tap was for.
+let _helpBtnArmTimer = null;
+
+// DOM-derived, deliberately — the same lesson as _alarmOwnsScreen: one authority, no second flag that
+// can drift out of step with what is actually on screen.
+function _helpButtonIsArmed() {
+  const b = document.getElementById('btn-alert');
+  return !!(b && b.classList.contains('is-armed'));
+}
+
+function _armHelpButton() {
+  const b = document.getElementById('btn-alert');
+  const n = document.getElementById('btn-alert-notnow');
+  if (!b) return;
+  b.classList.add('is-armed');
+  b.innerHTML = HELP_BUTTON_ARMED_LABEL;
+  if (n) n.classList.remove('hidden');
+  if (_helpBtnArmTimer) clearTimeout(_helpBtnArmTimer);
+  _helpBtnArmTimer = setTimeout(_disarmHelpButton, HELP_BUTTON_ARM_TIMEOUT_MS);
+}
+
+// Idempotent and safe to call from any state transition — the armed state must never outlive the screen
+// it belongs to (the sign-out confirm's lesson: never carry an open confirm across a screen change).
+function _disarmHelpButton() {
+  const b = document.getElementById('btn-alert');
+  const n = document.getElementById('btn-alert-notnow');
+  if (_helpBtnArmTimer) { clearTimeout(_helpBtnArmTimer); _helpBtnArmTimer = null; }
+  if (b) { b.classList.remove('is-armed'); b.innerHTML = HELP_BUTTON_REST_LABEL; }
+  if (n) n.classList.add('hidden');
+}
+
 function _applyOrbButtonState(on) {
   const orb = document.getElementById('orb-backdrop-system');
   if (on) orb.classList.add('orb--btn-on');
@@ -2707,6 +2787,9 @@ function _activateSettingsTab(name) {
     .forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
   document.querySelectorAll('#settings-overlay .settings-pane')
     .forEach((p) => p.classList.toggle('is-active', p.dataset.pane === name));
+  // Ruling 4 — and never carry an ARMED help button behind an opened settings sheet either. Same
+  // lesson, same line: a confirm state must not outlive the screen the member was looking at.
+  if (typeof _disarmHelpButton === 'function') _disarmHelpButton();
   // US5/T021 — never carry an open sign-out confirm across an open or tab switch.
   const lc = document.getElementById('logout-confirm');
   const am = document.getElementById('account-main');
@@ -3160,6 +3243,136 @@ function _postSummonForCollapse(triggerSource) {
     console.log('[ALARM] collision A — summon POST failed; engine keeps its hold (law 4):', e);
     return null;
   });
+}
+
+/* ══ RULING 1 + 2 (21 Jul) — RECORD EVERY ACTIVATION, AND HOW IT ENDED ═══════════════════════════
+   Until now the first server-side trace of a button/orb/Flic activation appeared at COMMIT — the end of
+   the device-side countdown. An activation cancelled or swiped away inside the window therefore left no
+   trace at all: the member pressed for help and the record showed nothing. That absence was the defect —
+   NOT the missing rescue. A swipe is a legitimate cancel (ruling 3); it simply has to be recorded.
+
+   So: one row per activation, written at press, resolved to exactly ONE outcome.
+
+   `activation_pending` is the durable half. It carries the row id AND the outcome we intend, and it is
+   written BEFORE each POST, so a process killed mid-POST replays the RIGHT outcome on next launch rather
+   than assuming the worst. Without the stored outcome a failed tap-cancel POST would later be reported as
+   an app-close cancel — the same substance, but a lie about the mechanism, and this whole ruling exists
+   to stop the record lying.
+
+   The server owns the vocabulary (config.ACTIVATION_OUTCOMES); the device only ever names WHICH outcome,
+   never its words — so a copy correction never needs a handset. ── */
+let _activationRecordId = null;        // the row THIS window's outcome belongs to
+let _activationRecordPromise = null;   // …and the in-flight request for it, because the member can win the race
+
+async function _stashActivationPending(recordId, outcome) {
+  try { await setPreference('activation_pending', JSON.stringify({ id: recordId, outcome: outcome || null })); }
+  catch (e) { console.log('[ACTIVATION] could not stash pending marker:', e); }
+}
+
+// Press-time record (ruling 1). Fire-and-forget by design: a failure must never delay or block the
+// member's countdown — the alarm matters more than its paperwork. The cost of failure is bounded and
+// honest: no row, exactly as today, never a wrong row.
+async function _startActivationRecord(triggerSource) {
+  _activationRecordId = null;
+  _activationRecordPromise = _requestActivationRecord(triggerSource);
+  return _activationRecordPromise;
+}
+
+async function _requestActivationRecord(triggerSource) {
+  try {
+    const memberId = await getPreference('member_airtable_id');
+    if (!memberId) { console.log('[ACTIVATION] no member_airtable_id — activation not recorded'); return null; }
+    const res = await fetch(`${STATUS_BASE}/bridge/log-event`, {
+      method: 'POST', headers: NGROK_HEADERS,
+      body: JSON.stringify({
+        event_type: 'ACTIVATION_STARTED',
+        member_airtable_id: memberId,
+        detail: JSON.stringify({ trigger_source: triggerSource }),
+      }),
+    });
+    const d = res.ok ? await res.json().catch(() => null) : null;
+    _activationRecordId = (d && d.record_id) || null;
+    if (_activationRecordId) {
+      await _stashActivationPending(_activationRecordId, null);
+      console.log(`[ACTIVATION] recorded at press — ${_activationRecordId} (${triggerSource})`);
+    } else {
+      console.log('[ACTIVATION] press-time record not written — the window continues regardless');
+    }
+    return _activationRecordId;
+  } catch (e) {
+    console.log('[ACTIVATION] press-time record failed — the window continues regardless:', e);
+    return null;
+  }
+}
+
+// Resolve an activation to its one outcome. Stash-then-POST, clear only on a settled answer, so an
+// interrupted resolve is retried on the next launch with the outcome it was always meant to carry.
+async function _resolveActivation(outcome, recordId) {
+  let id = recordId || _activationRecordId;
+  /* THE MEMBER CAN BEAT THE RECORD HOME, and usually will (device-found 21 Jul).
+     The press-time POST is a real network round trip — measured at 1.2s+ over ngrok on the 6a — while a
+     cancel window exists precisely so the member can stop it FAST. Reading only the in-memory id meant a
+     cancel inside that round trip found `null` and returned silently: no POST, no log, the row left
+     unresolved forever. On the handset the tap-cancels vanished while the swipe (which reads the durable
+     marker at next launch) resolved correctly — the two paths disagreed because they consulted different
+     sources of truth.
+     So: wait for the row this outcome belongs to, then fall back to the marker on disk. A fast cancel is
+     the COMMON case, not an edge case, and it is the one the member most wants recorded. This is not
+     awaited by cancelAlarm, so nothing on screen waits for it. */
+  if (!id && _activationRecordPromise) {
+    try { id = await _activationRecordPromise; } catch (e) { id = null; }
+  }
+  if (!id) {
+    try {
+      const raw = await getPreference('activation_pending');
+      if (raw) id = (JSON.parse(raw) || {}).id || null;
+    } catch (e) { id = null; }
+  }
+  if (!id) return false;
+  await _stashActivationPending(id, outcome);
+  let settled = false;
+  try {
+    const res = await fetch(`${STATUS_BASE}/activation-outcome`, {
+      method: 'POST', headers: NGROK_HEADERS,
+      body: JSON.stringify({ record_id: id, outcome }),
+    });
+    // 2xx = written (or already resolved — the server's wall 4 answers ok:true for a late duplicate).
+    // 404/409 are TERMINAL too: the row is gone, or it is not ours to write. Retrying either on every
+    // launch forever would be a permanent false signal, so both settle the marker.
+    settled = res.ok || res.status === 404 || res.status === 409;
+    console.log(`[ACTIVATION] ${id} → ${outcome} (HTTP ${res.status})`);
+  } catch (e) {
+    console.log(`[ACTIVATION] ${id} → ${outcome} failed; will retry on next launch:`, e);
+  }
+  if (settled) {
+    try { await removePreference('activation_pending'); } catch (e) {}
+    if (id === _activationRecordId) _activationRecordId = null;
+  }
+  return settled;
+}
+
+/* RULING 3 — closing the app IS a cancel for a member-initiated activation, and this is where that
+   becomes visible. Teardown is completely silent on Android (verified: no onTaskRemoved anywhere, no
+   pagehide/beforeunload, and `visibilitychange → hidden` cannot tell a background — where the countdown
+   MUST continue — from a kill), so the honest moment to record it is the next cold launch: a pending
+   activation that never resolved means the app went away mid-window.
+
+   MUST RUN BEFORE the launch summon consumers, which can start a fresh activation and overwrite the
+   marker. It lifts the marker out before doing anything slow, so a concurrent new press cannot lose it.
+
+   RESIDUAL, stated rather than papered over (accepted at ruling): press → swipe → never reopen leaves
+   the row unresolved. Strictly better than today's nothing — and an unresolved activation is itself a
+   visible signal. */
+async function _reconcileUnresolvedActivation() {
+  let raw = null;
+  try { raw = await getPreference('activation_pending'); } catch (e) { return; }
+  if (!raw) return;
+  let pending = null;
+  try { pending = JSON.parse(raw); } catch (e) { pending = null; }
+  if (!pending || !pending.id) { try { await removePreference('activation_pending'); } catch (e) {} return; }
+  const outcome = pending.outcome || 'cancelled_app_close';
+  console.log(`[ACTIVATION] unresolved activation ${pending.id} found at launch — resolving as ${outcome}`);
+  await _resolveActivation(outcome, pending.id);
 }
 
 // PHASE 6 (009) — the parallel bridge sweep is DELETED. Reaching is the ENGINE (run_escalation) for BOTH
@@ -4906,6 +5119,10 @@ function _initFlicListeners() {
     console.warn('[Flic] summon dropped — too old to act on', e);
     _showCalmNote('A button press just now couldn’t be acted on — press again if you need help.');
   });
+  // RULING 3 (21 Jul) — FIRST, before either consumer below can start a fresh activation and overwrite
+  // the pending marker: an activation left unresolved by an app-close/swipe is recorded as the cancel it
+  // was.
+  _reconcileUnresolvedActivation();
   _consumeFlicLaunchSummon();  // a press while the app was closed launched us here (full-screen intent)
   _consumeEscalationAlarm();   // Bug A — an escalation_started push while killed launched us here
 }

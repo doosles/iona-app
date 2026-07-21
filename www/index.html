@@ -140,6 +140,15 @@
       <button id="btn-cancel" class="btn-cancel hidden">CANCEL</button>
     </div>
 
+    <!-- RULING 4 (21 Jul) — the in-app help button is TWO-TAP to activate; the orb and the Flic are
+         unchanged. Mockup shape A approved: the button arms itself in place (one target that never
+         moves) and this quiet escape sits beneath it. Copy is PLACEHOLDER (owner-reserved).
+         There is no clock on the CONFIRM in the member's sense — but an armed button that is never
+         confirmed settles back to rest after ARM_TIMEOUT, silently and with no record: a first tap
+         that is never confirmed is not an activation, and logging it would turn the false-tap noise
+         this two-tap exists to absorb into a source of rows. -->
+    <button id="btn-alert-notnow" class="btn-alert-notnow hidden">Not now</button>
+
     <button id="btn-done" class="btn-alarm-done hidden">↩ Return to Iona</button>
 
     <!-- Feature 010 — Phase-2 cancel control: overlays the LOCKED nav on Oran's Promise. Two-step

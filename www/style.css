@@ -1857,6 +1857,31 @@ body.light .btn-okay.btn--dim {
 .btn-okay.btn--pulse  { animation: btnPulseTeal  1.6s ease-in-out infinite; }
 .btn-alert.btn--pulse { animation: btnPulseAmber 1.6s ease-in-out infinite; }
 
+/* RULING 4 (21 Jul) — the ARMED state of the two-tap help button (mockup shape A).
+   The button fills rather than moving or being replaced: the member's finger stays exactly where it
+   already is, and the fill + the changed label carry the confirmation. Reversed contrast (ink on amber)
+   so "armed" reads at a glance without relying on colour alone — the label changes too. */
+.btn-alert.is-armed {
+  background: var(--amber-500);
+  color: var(--ink-950);
+  border-color: var(--amber-500);
+}
+/* The quiet escape. Full-width and touch-sized (never a small target), but visually recessive — it is
+   the way out, not the action. */
+.btn-alert-notnow {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  min-height: var(--min-touch);
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
 /* --- Bridge card (feature 002-reactive-voice-bridge) --- */
 .bridge-card {
   margin: 12px 0 4px;

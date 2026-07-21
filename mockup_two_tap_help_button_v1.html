@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — two-tap "I need help" (ruling 4, 21 Jul)</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --amber-300:#F5C97B; --amber-400:#EFB154; --amber-500:#E0973A; --amber-600:#BE7926;
+    --ink-800:#0C1C30; --ink-900:#081424; --ink-950:#050B14;
+    --bg:#081424; --surface:#0C1C30; --surface-2:#13283F; --border:#1B344F;
+    --text:#ECF2F6; --text-muted:#586A7A; --radius:12px; --min-touch:48px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ink-950); color:var(--text);
+    font-family:'Hanken Grotesk',system-ui,sans-serif; padding:28px 20px 60px;
+  }
+  h1{font-size:20px;font-weight:700;margin:0 0 4px}
+  .sub{color:var(--text-muted);font-size:13px;margin:0 0 28px;max-width:70ch;line-height:1.5}
+  .rail{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .opt{flex:1 1 300px;min-width:290px;max-width:360px}
+  .opt > h2{font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber-400);margin:0 0 2px}
+  .opt > .note{font-size:12.5px;color:var(--text-muted);line-height:1.55;margin:0 0 14px;min-height:74px}
+  /* phone frame */
+  .phone{
+    background:var(--bg); border:1px solid var(--border); border-radius:26px;
+    padding:16px 14px 20px; box-shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  .msg{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:12px 14px; font-size:13.5px; line-height:1.45; margin-bottom:14px; color:var(--text);
+  }
+  .msg small{display:block;color:var(--text-muted);font-size:11px;margin-top:6px}
+  .row{display:flex;gap:10px}
+  .btn-okay,.btn-alert{
+    display:block;flex:1;border-radius:14px;padding:28px 10px;
+    font-family:inherit;font-size:14px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.07em;cursor:pointer;text-align:center;line-height:1.25;
+  }
+  .btn-okay{background:var(--ink-800);color:var(--text);border:1.5px solid var(--border)}
+  .btn-alert{background:var(--ink-800);color:var(--amber-500);border:1.5px solid var(--amber-500)}
+  /* state 2 — armed */
+  .btn-alert.armed{background:var(--amber-500);color:var(--ink-950);border-color:var(--amber-500)}
+  .undo{
+    display:block;width:100%;margin-top:10px;min-height:var(--min-touch);
+    background:transparent;color:var(--text-muted);border:none;
+    font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;
+  }
+  /* option B — sign-out-shaped confirm */
+  .confirm{display:flex;flex-direction:column;gap:8px;padding:18px 4px 6px}
+  .confirm-title{font-size:18px;font-weight:700;text-align:center}
+  .confirm-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:10px}
+  .confirm-go{
+    display:block;width:100%;min-height:56px;background:var(--amber-500);color:var(--ink-950);
+    border:none;border-radius:var(--radius);font-family:inherit;font-size:17px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.05em;cursor:pointer;
+  }
+  .confirm-cancel{
+    display:block;width:100%;min-height:var(--min-touch);background:var(--surface-2);color:var(--text);
+    border:.5px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:16px;
+    font-weight:600;cursor:pointer;
+  }
+  /* option C — full takeover */
+  .takeover{
+    background:var(--surface);border:1.5px solid var(--amber-500);border-radius:18px;
+    padding:22px 18px;text-align:center;
+  }
+  .takeover .t{font-size:20px;font-weight:700;margin-bottom:6px}
+  .takeover .s{font-size:13.5px;color:var(--text-muted);line-height:1.5;margin-bottom:18px}
+  .step{display:flex;align-items:center;gap:8px;margin:22px 0 8px}
+  .step span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+  .step i{flex:1;height:1px;background:var(--border)}
+  .verdict{
+    margin-top:34px;padding:16px 18px;border-left:2px solid var(--amber-500);
+    background:var(--surface);border-radius:0 12px 12px 0;font-size:13.5px;line-height:1.6;max-width:88ch;
+  }
+  .verdict b{color:var(--amber-300)}
+  .k{margin-top:26px;font-size:12.5px;color:var(--text-muted);line-height:1.7;max-width:88ch}
+  .k b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<h1>Two-tap "I need help" — three shapes</h1>
+<p class="sub">Ruling 4 (21 Jul): the in-app help button becomes two-tap to activate; the orb stays one-tap; the Flic is unchanged.
+No clock on the confirm — the member may take as long as they like. Amendment 2's one-tap CANCEL during the countdown is untouched.
+Each option below shows tap 1 → the state it leaves behind. Nothing here is built.</p>
+
+<div class="rail">
+
+  <!-- ─────────────── OPTION A ─────────────── -->
+  <div class="opt">
+    <h2>A · The button arms itself</h2>
+    <p class="note">The button stays the button. Tap 1 fills it and changes the word; tap 2 activates.
+    One target, same place, no new furniture — the member's finger never has to move.
+    "Not now" sits underneath, quiet and unmissable.</p>
+
+    <div class="step"><span>Tap 1 — before</span><i></i></div>
+    <div class="phone">
+      <div class="msg">Good morning Ian — how are you today?<small>Iona · 9:04</small></div>
+      <div class="row">
+        <button class="btn-okay">Okay<br>thanks</button>
+        <button class="btn-alert">I need<br>help</button>
+      </div>
+    </div>
+
+    <div class="step"><span>After tap 1 — armed</span><i></i></div>
+    <div class="phone">
+      <div class="msg">Good morning Ian — how are you today?<small>Iona · 9:04</small></div>
+      <div class="row">
+        <button class="btn-okay">Okay<br>thanks</button>
+        <button class="btn-alert armed">Tap again<br>to get help</button>
+      </div>
+      <button class="undo">Not now</button>
+    </div>
+  </div>
+
+  <!-- ─────────────── OPTION B ─────────────── -->
+  <div class="opt">
+    <h2>B · The sign-out shape</h2>
+    <p class="note">Reuses the confirm the member already meets when signing out — same panel, same rhythm —
+    but with the polarity inverted: here the deliberate action is the big one and Cancel is the quiet one,
+    because hesitating costs more than an accidental tap does.</p>
+
+    <div class="step"><span>Tap 1 — before</span><i></i></div>
+    <div class="phone">
+      <div class="msg">Good morning Ian — how are you today?<small>Iona · 9:04</small></div>
+      <div class="row">
+        <button class="btn-okay">Okay<br>thanks</button>
+        <button class="btn-alert">I need<br>help</button>
+      </div>
+    </div>
+
+    <div class="step"><span>After tap 1 — confirm</span><i></i></div>
+    <div class="phone">
+      <div class="msg">Good morning Ian — how are you today?<small>Iona · 9:04</small></div>
+      <div class="confirm">
+        <div class="confirm-title">Get help now?</div>
+        <div class="confirm-sub">We'll call your contacts. You can stop it.</div>
+        <button class="confirm-go">Yes, get help</button>
+        <button class="confirm-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── OPTION C ─────────────── -->
+  <div class="opt">
+    <h2>C · Full-card takeover</h2>
+    <p class="note">Tap 1 replaces the message card entirely, so there is nothing else on screen to mis-hit.
+    The most unmissable, and the most disruptive — it briefly hides the message the member was answering.
+    Offered for completeness; heaviest of the three.</p>
+
+    <div class="step"><span>Tap 1 — before</span><i></i></div>
+    <div class="phone">
+      <div class="msg">Good morning Ian — how are you today?<small>Iona · 9:04</small></div>
+      <div class="row">
+        <button class="btn-okay">Okay<br>thanks</button>
+        <button class="btn-alert">I need<br>help</button>
+      </div>
+    </div>
+
+    <div class="step"><span>After tap 1 — takeover</span><i></i></div>
+    <div class="phone">
+      <div class="takeover">
+        <div class="t">Get help now?</div>
+        <div class="s">We'll call your emergency contacts.<br>You'll have a moment to stop it.</div>
+        <button class="confirm-go">Yes, get help</button>
+        <button class="undo">Not now</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="verdict">
+  <b>CC leans to A.</b> It is the only one that is literally "tap it twice" — which is the sentence the ruling's own
+  user-guide test uses (<i>"Tap 'I need help' twice to set off an alarm"</i>). The target never moves, so a member who has
+  already decided is not asked to find a new button; the fill and the word change carry the confirmation instead.
+  B is the safer-feeling option if you want the member to read a question before anything happens, and it borrows a
+  pattern they have already met — but it turns one gesture into two different targets. C is the most emphatic and the
+  most disruptive; it hides the message being answered.
+</div>
+
+<p class="k">
+  <b>Open in all three (owner-reserved, copy session):</b> the armed wording — "Tap again to get help" / "Yes, get help" —
+  and the escape wording — "Not now" / "Cancel".<br>
+  <b>Behaviour common to whichever is chosen:</b> no clock on the confirm; the armed state clears if the member leaves the
+  screen or taps the escape; tap 2 enters the existing cancel window exactly as today (siren → tone → Oran → countdown →
+  one-tap cancel, Amendment 2 untouched); the orb and the Flic keep firing on one press.
+</p>
+
+</body>
+</html>
