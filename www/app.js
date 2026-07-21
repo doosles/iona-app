@@ -1155,8 +1155,30 @@ function _showStopControl() {
   }
 }
 
+/* RULING 2026-07-21 — THE CANCEL CONTROL MUST NEVER APPEAR ON ANY TERMINAL CARD.
+   The single reveal point for the one shared terminal card (#alarm-terminal-card). Revealing the card and
+   tearing down the live-calling controls are now ONE act, so they cannot drift apart: a terminal card
+   physically cannot be drawn with the stop control still up, and a future terminal cannot forget the
+   teardown, because showing the card IS the teardown.
+
+   Chosen over a per-card teardown deliberately. The defect existed precisely because showSuccessTerminal
+   (the shared success card, v5.20) and showBridgeTerminalState (008/009) were written BEFORE the 010
+   control and never learned it existed — they each carefully hid the older btn-cancel and knew nothing of
+   this one. Leaving three sites to each remember is the same trap as the §22 four-site copy-sync line, and
+   it is the trap that produced this bug. The choke point also swept up a FIFTH terminal card
+   (_showServiceTestTerminal) that the Step 0 source pass had missed — which is the argument for it in one
+   sentence.
+
+   _hideStopControl() also unlocks the nav (_lockNav(false)); both belong to the live calling state and
+   neither belongs to a terminal, which is why the member could not reach Settings from the stuck card. */
+function _showTerminalCard() {
+  _hideStopControl();
+  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+}
+
 function showTerminalState() {
-  _hideStopControl();   // Feature 010 — clear the Phase-2 control + unlock the nav at the terminal
+  // Teardown is owned by _showTerminalCard() below — one authority, no second writer. (Was an explicit
+  // _hideStopControl() here; the exhausted card was the ONLY terminal that had it.)
   _alarmFlowActive = true;
   show('screen-today');
   hideOrb();
@@ -1171,7 +1193,7 @@ function showTerminalState() {
   // (deck v1.2; the both-options default). App wording here unchanged.
   document.getElementById('alarm-terminal-title').textContent = 'None of your contacts are able to help right now.';
   document.getElementById('alarm-terminal-sub').textContent   = 'Press I NEED HELP to try again.';
-  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  _showTerminalCard();
   document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-okay').classList.remove('btn--pulse');
   // Both buttons, matching ⑥: I NEED HELP (retry) + Return to Iona. escalation_state STAYS 'terminal' (set
@@ -1228,7 +1250,7 @@ function showSuccessTerminal({ leadCopy, name, nameFallback, subLines, callPhone
     ? subLines.map((l) => `<span class="terminal-instr-line">${l}</span>`).join('')
     : ('<span class="terminal-instr-line">Press <span class="terminal-instr-help">I NEED HELP</span> again</span>' +
        '<span class="terminal-instr-line">anytime you need it</span>');
-  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  _showTerminalCard();
   document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
@@ -3551,7 +3573,7 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
     showSuccessTerminal({ leadCopy: 'We connected you with', name: connectedName, nameFallback: 'your contact', callPhone: contactPhone });
     return;
   }
-  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  _showTerminalCard();
   // 60s auto-return to resting Today (the EXHAUSTED terminal). Cancelled by a manual Return-to-Iona,
   // a fresh I NEED HELP press, or any resting-Today reset.
   _clearBridgeTerminalReturnTimer();
@@ -5008,7 +5030,7 @@ async function _deviceDialTerminal(reason) {
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-alarm-done').classList.remove('hidden');
-  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  _showTerminalCard();
   // 60s auto-return to resting Today (same mechanism as the bridge/escalation terminals).
   _clearBridgeTerminalReturnTimer();
   _bridgeTerminalReturnTimer = setTimeout(showAlarmIdleReset, BRIDGE_TERMINAL_AUTORETURN_MS);
@@ -6651,7 +6673,7 @@ function _showServiceTestTerminal(success) {
     document.getElementById('alarm-terminal-title').textContent = _fn ? `We couldn’t finish just now, ${_fn}` : 'We couldn’t finish just now';
     document.getElementById('alarm-terminal-sub').textContent   = 'Nothing was sent to your contacts. Please try again in a moment.';
   }
-  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  _showTerminalCard();
   ['btn-okay', 'btn-alert', 'btn-cancel', 'btn-done'].forEach(id => {
     const e = document.getElementById(id); if (e) { e.classList.add('hidden'); e.classList.remove('btn--pulse'); }
   });
