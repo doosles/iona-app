@@ -1192,7 +1192,11 @@ function showTerminalState() {
   // reached" terminals match — the SERVER source for that spoken line is escalation_copy.exhausted_line()
   // (deck v1.2; the both-options default). App wording here unchanged.
   document.getElementById('alarm-terminal-title').textContent = 'None of your contacts are able to help right now.';
-  document.getElementById('alarm-terminal-sub').textContent   = 'Press I NEED HELP to try again.';
+  // Owner-ruled 22 Jul: ALERT CONTACTS is amber-highlighted on EVERY terminal card (it was
+  // amber only on the success card). innerHTML, not textContent, is required for the span —
+  // safe because these subs are STATIC literals with no interpolation. Any future sub that
+  // carries a name or number must go back to textContent.
+  document.getElementById('alarm-terminal-sub').innerHTML   = 'Press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
   _showTerminalCard();
   document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-okay').classList.remove('btn--pulse');
@@ -1248,7 +1252,7 @@ function showSuccessTerminal({ leadCopy, name, nameFallback, subLines, callPhone
   // default keeps the retry instruction. subLines are STATIC deck-aligned strings (no dynamic injection).
   document.getElementById('alarm-terminal-sub').innerHTML = (subLines && subLines.length)
     ? subLines.map((l) => `<span class="terminal-instr-line">${l}</span>`).join('')
-    : ('<span class="terminal-instr-line">Press <span class="terminal-instr-help">I NEED HELP</span> again</span>' +
+    : ('<span class="terminal-instr-line">Press <span class="terminal-instr-help">ALERT CONTACTS</span> again</span>' +
        '<span class="terminal-instr-line">anytime you need it</span>');
   _showTerminalCard();
   document.getElementById('btn-okay').classList.add('hidden');
@@ -2712,7 +2716,11 @@ function initTodayActions() {
    confirming second tap, exactly as ruling 1 says. The lapse is a visual settle, not a message: a
    message would imply something happened, and nothing did. ── */
 const HELP_BUTTON_ARM_TIMEOUT_MS = 10000;
-const HELP_BUTTON_REST_LABEL  = 'I NEED<br>HELP';
+const HELP_BUTTON_REST_LABEL  = 'ALERT<br>CONTACTS';   // Owner-ruled 22 Jul. SECOND HOME of the resting
+                                                       // label — index.html #btn-alert holds the other.
+                                                       // _disarmHelpButton writes this back on every
+                                                       // return-to-rest, so the two must change together
+                                                       // or the button renames itself mid-session.
 const HELP_BUTTON_ARMED_LABEL = 'TAP AGAIN<br>TO GET HELP';   // PLACEHOLDER copy — owner-reserved.
                                                               // Names the ACTION, not "confirm": a member
                                                               // should not have to recall what the first
@@ -3520,9 +3528,9 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
       _dropBtn.textContent = _dn ? `📞 Call ${_dn}` : '📞 Call your contact';
       _dropBtn.onclick = () => { _callContactDirect(contactPhone); };
       _dropBtn.classList.remove('hidden');
-      document.getElementById('alarm-terminal-sub').textContent = 'Tap to call them, or press I NEED HELP to try again.';
+      document.getElementById('alarm-terminal-sub').innerHTML = 'Tap to call them, or press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
     } else {
-      document.getElementById('alarm-terminal-sub').textContent = 'Press I NEED HELP to try again.';
+      document.getElementById('alarm-terminal-sub').innerHTML = 'Press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
     }
     document.getElementById('btn-alert').classList.remove('hidden');
     document.getElementById('btn-alert').classList.remove('btn--pulse');
@@ -3544,10 +3552,10 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
       _fjBtn.textContent = _fj ? `📞 Call ${_fj}` : '📞 Call your contact';
       _fjBtn.onclick = () => { _callContactDirect(contactPhone); };
       _fjBtn.classList.remove('hidden');
-      document.getElementById('alarm-terminal-sub').textContent = 'Tap to call them, or press I NEED HELP to try again.';
+      document.getElementById('alarm-terminal-sub').innerHTML = 'Tap to call them, or press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
     } else {
       // No number captured (rare) — fall to the shell's re-press floor, never a dead button.
-      document.getElementById('alarm-terminal-sub').textContent = 'Press I NEED HELP to try again.';
+      document.getElementById('alarm-terminal-sub').innerHTML = 'Press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
     }
     document.getElementById('btn-alert').classList.remove('hidden');
     document.getElementById('btn-alert').classList.remove('btn--pulse');
@@ -3560,7 +3568,7 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
     // (it names the physical button OR the app), but this card keeps the BOTH-options wording — the safe
     // default — so a member reading it always sees every way back in. Keep in step with escalation_copy.py.
     document.getElementById('alarm-terminal-title').textContent = 'None of your contacts are able to help right now.';
-    document.getElementById('alarm-terminal-sub').textContent   = 'Press your button, or I NEED HELP, to try again.';
+    document.getElementById('alarm-terminal-sub').innerHTML   = 'Press your button, or <span class="terminal-instr-help">ALERT CONTACTS</span>, to try again.';
     document.getElementById('btn-alert').classList.remove('hidden');
     document.getElementById('btn-alert').classList.remove('btn--pulse');
     document.getElementById('btn-alarm-done').classList.remove('hidden');
@@ -3606,7 +3614,10 @@ function showBridgeCard(state, connectedName, contactPhone) {
   } else if (state === 'error') {
     card.classList.add('bridge-card--error');
     label.textContent = 'Something stopped me from reaching your contacts.';
-    sub.textContent   = 'Press I NEED HELP to try again.';
+    // Amber here too (owner, 22 Jul): this is the BRIDGE card, not a terminal card, but it names the
+    // same control at the same kind of moment and a member cannot tell the two containers apart.
+    // Ten highlighted and one not would read as a rendering fault, not a decision.
+    sub.innerHTML     = 'Press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
     _stopVoiceEq();
     _clearBridgeAttemptAfterDelay();
   }
@@ -5019,13 +5030,13 @@ async function _deviceDialTerminal(reason) {
   if (reason === 'reached') {
     // User (holding the phone) confirmed they reached someone — honest, not auto-detected.
     document.getElementById('alarm-terminal-title').textContent = 'You reached someone.';
-    document.getElementById('alarm-terminal-sub').textContent   = 'I\'ve stopped calling. If you need more help, press I NEED HELP.';
+    document.getElementById('alarm-terminal-sub').innerHTML   = 'I\'ve stopped calling. If you need more help, press <span class="terminal-instr-help">ALERT CONTACTS</span>.';
   } else if (problem) {
     document.getElementById('alarm-terminal-title').textContent = 'Couldn\'t place the call.';
-    document.getElementById('alarm-terminal-sub').textContent   = 'Please allow phone access, then press I NEED HELP to try again.';
+    document.getElementById('alarm-terminal-sub').innerHTML   = 'Please allow phone access, then press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
   } else {
     document.getElementById('alarm-terminal-title').textContent = 'I\'ve called all your contacts.';
-    document.getElementById('alarm-terminal-sub').textContent   = 'If you still need help, press I NEED HELP to try again, or return to Iona.';
+    document.getElementById('alarm-terminal-sub').innerHTML   = 'If you still need help, press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again, or return to Iona.';
   }
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-alert').classList.remove('btn--pulse');
