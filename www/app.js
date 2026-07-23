@@ -148,7 +148,10 @@ function playAttentionTone() {
 }
 
 // Feature 010 / Amendment 8 — the activation prompt as a pre-recorded Oran (Polly Arthur-Neural) clip,
-// one per ladder step (5–60 by 5). Clip text is the byte-exact Amendment-7 template with {n} rendered in.
+// one per ladder step (5–60 by 5). CANONICAL TEXT: escalation_copy.ACTIVATION_COUNTDOWN_TMPL (deck v1.14,
+// owner-ruled 2026-07-23 — the rewritten "This is Oran. You've activated your alarm. You have {n} seconds
+// to cancel, before I call your contacts for you.", rendered per step). The old byte-exact Amendment-7
+// template (see the retired playVoiceMessage below) is superseded.
 // Selected by the member's configured window; clamped to the ladder so an out-of-range value can never
 // request a missing asset (falls back to the ruled default 10).
 function _activationClipFor(seconds) {
@@ -157,11 +160,16 @@ function _activationClipFor(seconds) {
   return SA_STATIC_BASE + 'activation_' + String(n).padStart(2, '0') + '.mp3';
 }
 
-// RETIRED from member-facing use (Amendment 8). The Web-Speech path never played on Android WebView:
-// speechSynthesis.getVoices() populates asynchronously, so the voices-ready guard below trips on the
-// first synchronous ask every time and the function returns before speak() is ever reached (logcat
-// showed zero TTS activity). All member-facing lines are now pre-recorded Polly clips on the
-// _saPlayOnce pipeline. Kept only as a non-member-facing reference; do not wire it to new callers.
+// RETIRED from member-facing use (Amendment 8), and its wording is now SUPERSEDED too. The template below
+// was the old activation copy ("This is Iona. You have pressed the HELP button. …") — dead source that once
+// backed the countdown clips. As of the 2026-07-23 copy ruling the canonical countdown text lives in the
+// deck (escalation_copy.ACTIVATION_COUNTDOWN_TMPL, v1.14, all-Oran, polarity-flipped) and the clips are
+// rendered from THERE; this string is no longer the source of anything. Kept (not deleted) only as a
+// historical reference this pass — do not wire it to new callers, and do not treat its text as current.
+// The Web-Speech path also never played on Android WebView: speechSynthesis.getVoices() populates
+// asynchronously, so the voices-ready guard below trips on the first synchronous ask every time and the
+// function returns before speak() is ever reached (logcat showed zero TTS activity). All member-facing
+// lines are now pre-recorded Polly clips on the _saPlayOnce pipeline.
 function playVoiceMessage(windowSeconds = ALARM_CANCEL_WINDOW_SECONDS) {
   // v2 — replace with a pre-recorded Amy Neural file (new Audio('https://static.iona.today/audio/alert-message.mp3')).
   // Feature 010: the cancel window is member-configured (5–60s); windowSeconds is interpolated below (FR-010).
@@ -1836,11 +1844,14 @@ async function _startIonaEscalation(bridgeFallthrough) {
   await playAlarmSiren();
   // Amendment 8/9 — the old TTS line here is retired: it announced a cancel window that does not exist on
   // this path (the window already ran at the front door in _startHelpSequence) and never played anyway.
-  // BRIDGE HARD-FAILURE LINE: deliberately NOT wired. Captain ruling 2026-07-18 — the clip exists
-  // (bridge_fallthrough.mp3) but its wording and voice are owner-reserved to the copy session, and no
-  // placeholder debuts in a crisis moment. Behaviour here is therefore unchanged from today (silent from
-  // this point; the Signal-audio pipeline narrates). Wire the call in _playBridgeFallthroughMessage's
-  // caller ONLY once the copy session has ruled.
+  // BRIDGE HARD-FAILURE LINE — WIRED 2026-07-23 (copy session ruled: escalation_copy.BRIDGE_FALLTHROUGH_LINE,
+  // rendered to bridge_fallthrough.mp3, Oran). Ends the 18 Jul ruled silence — it debuts with ruled words,
+  // not a placeholder. GATED on bridgeFallthrough: the line ("I couldn't connect you directly. I'm calling
+  // your contacts now.") is only true when we actually fell through from a failed bridge (_onBridgeExhausted);
+  // the direct entry never attempted a bridge, so it stays silent there. Awaited so it plays cleanly before
+  // commitEscalation kicks the standard sweep (→ /pwa-respond 'alert', or the offline device-dial floor —
+  // which is what makes "I'm calling your contacts now" true). The Signal-audio handover follows from there.
+  if (bridgeFallthrough) await _playBridgeFallthroughMessage();
   showEscalationActiveState();
   commitEscalation(fcmToken);
 }
