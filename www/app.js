@@ -1829,7 +1829,7 @@ async function _startIonaEscalation(bridgeFallthrough) {
   const fcmToken = await getPreference('fcm_token');
   if (!fcmToken) {
     const warningEl = document.getElementById('msg-today-warning');
-    warningEl.textContent = 'Your device is not fully registered — the alarm cannot be raised right now.';
+    warningEl.textContent = 'Your device is not fully registered — your beacon cannot be activated right now.';
     warningEl.classList.remove('hidden');
     return;
   }
@@ -2081,6 +2081,16 @@ async function _startHelpSequence(triggerSource) {
   if (cancelledByUser) return;
   await playAttentionTone();                                   // addendum — the existing pre-Iona tone, reused
   if (cancelledByUser) return;
+  // v1.15 (24 Jul beacon ruling) — the personal greeting ("Hello {first}.") plays BEFORE the nameless body.
+  // Member-scoped clip cached by the /signal-audio/clips reconcile under 'member_greeting'. NEVER-SILENT: a
+  // missing / stale / unfetched greeting resolves to null and is SKIPPED with zero wait — the body plays alone,
+  // degrading to nameless, never to silence. Cancel stays live across it, exactly like the siren/tone/body.
+  let _greetingSrc = null;
+  try { _greetingSrc = await _saCachedSrc('member_greeting'); } catch (e) { _greetingSrc = null; }  // never-silent by construction: a broken resolver degrades to nameless, never aborts the body
+  if (_greetingSrc) {
+    await _saPlayOnce(_greetingSrc);
+    if (cancelledByUser) return;
+  }
   await _saPlayOnce(_activationClipFor(escalationCountdownValue));   // Oran speaks ONCE, number included
   if (cancelledByUser) return;
 
@@ -2137,7 +2147,7 @@ async function _startHelpSequence(triggerSource) {
       const fcmToken = await getPreference('fcm_token');
       if (!fcmToken) {
         const warningEl = document.getElementById('msg-today-warning');
-        warningEl.textContent = 'Your device is not fully registered — the alarm cannot be raised right now.';
+        warningEl.textContent = 'Your device is not fully registered — your beacon cannot be activated right now.';
         warningEl.classList.remove('hidden');
         showAlarmIdleReset();
         return;
@@ -4082,6 +4092,7 @@ async function refreshDeviceDialCache({ throttleMs = 0 } = {}) {
 const SA_STATIC_BASE = 'audio/signal/';           // bundled static clips (relative www path)
 const SA_MANIFEST_KEY = 'signal_audio_manifest';  // Preferences: {version, ts, contacts:[{index,first}]}
 const SA_CLIP_PREFIX = 'signal_clip_';            // Preferences: signal_clip_<i>_{attempt|ack|trying_now|trying_again|amd|outcome_<oc>} = base64 mp3 (v1.9 attempt-anchored)
+                                                  // + the member-scoped signal_clip_member_greeting ("Hello {first}.", v1.15) — non-indexed, played first in the countdown chain
 // ─── The single audio authority (R-006-11 B) ────────────────────────────────────────────────────────
 // ONE state machine owns every loop; NO loop starts/stops itself. Every signal (started/advance/ended/
 // complete) is validated against the live run + attempt BEFORE it can act — a stale-run, stale-attempt, or
@@ -4820,7 +4831,10 @@ async function refreshSignalAudioCache({ throttleMs = 0 } = {}) {
     // matches the cached manifest, NOTHING changed → skip the clip re-writes (keeps foreground reconciles
     // cheap). Any real change — a contact added / removed / renamed, or a deck bump — differs → re-cache. This
     // is what picks up a contact edited outside the app (website / Airtable) on the next reconcile.
-    const _sig = String(data.version) + '|' + data.contacts.map((c) => c.index + ':' + (c.first || '')).join(',');
+    // v1.15 — the member-scoped greeting joins the signature so a member rename (→ new greeting audio) re-caches
+    // even without a version/contact change. Fingerprint = blob length + tail bytes (cheap; changes on rename).
+    const _gsig = data.greeting ? (data.greeting.length + '.' + data.greeting.slice(-8)) : '0';
+    const _sig = String(data.version) + '|' + data.contacts.map((c) => c.index + ':' + (c.first || '')).join(',') + '|g:' + _gsig;
     try {
       const _cached = JSON.parse((await getPreference(SA_MANIFEST_KEY)) || '{}');
       if (_cached && _cached.sig === _sig) { console.log('[SignalAudio] cache current (manifest unchanged) — skip'); return; }
@@ -4844,6 +4858,10 @@ async function refreshSignalAudioCache({ throttleMs = 0 } = {}) {
         if (b) await setPreference(SA_CLIP_PREFIX + c.index + '_outcome_' + oc, b);
       }
     }
+    // v1.15 — the member-scoped greeting blob, cached under a FIXED non-indexed key (parallel to the contact
+    // clips). Written as '' when absent (blank member name / render skipped) so a stale greeting is CLEARED and
+    // _saCachedSrc returns null → the countdown degrades to the nameless body. Never-silent by construction.
+    await setPreference(SA_CLIP_PREFIX + 'member_greeting', data.greeting || '');
     const inv = data.contacts.map((c) => ({ index: c.index, first: c.first || '' }));
     await setPreference(SA_MANIFEST_KEY, JSON.stringify({ version: data.version, sig: _sig, ts: Date.now(), contacts: inv }));  // R-009-27 FIX E — store the diff signature
     console.log('[SignalAudio] cache updated — v' + data.version, inv.length, 'contacts');
