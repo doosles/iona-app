@@ -148,10 +148,11 @@ function playAttentionTone() {
 }
 
 // Feature 010 / Amendment 8 — the activation prompt as a pre-recorded Oran (Polly Arthur-Neural) clip,
-// one per ladder step (5–60 by 5). CANONICAL TEXT: escalation_copy.ACTIVATION_COUNTDOWN_TMPL (deck v1.14,
-// owner-ruled 2026-07-23 — the rewritten "This is Oran. You've activated your alarm. You have {n} seconds
-// to cancel, before I call your contacts for you.", rendered per step). The old byte-exact Amendment-7
-// template (see the retired playVoiceMessage below) is superseded.
+// one per ladder step (5–60 by 5). CANONICAL TEXT: escalation_copy.ACTIVATION_COUNTDOWN_TMPL (deck v1.15,
+// owner-ruled 2026-07-24 — "This is Oran. You've activated your beacon. You have {n} seconds to cancel,
+// before I call your contacts for you.", rendered per step, and preceded on device by the member-scoped
+// ACTIVATION_GREETING_TMPL clip). The deck is the sole source of this line — the old Amendment-7 app-side
+// template was deleted on 2026-07-24 once proven unreferenced.
 // Selected by the member's configured window; clamped to the ladder so an out-of-range value can never
 // request a missing asset (falls back to the ruled default 10).
 function _activationClipFor(seconds) {
@@ -160,52 +161,16 @@ function _activationClipFor(seconds) {
   return SA_STATIC_BASE + 'activation_' + String(n).padStart(2, '0') + '.mp3';
 }
 
-// RETIRED from member-facing use (Amendment 8), and its wording is now SUPERSEDED too. The template below
-// was the old activation copy ("This is Iona. You have pressed the HELP button. …") — dead source that once
-// backed the countdown clips. As of the 2026-07-23 copy ruling the canonical countdown text lives in the
-// deck (escalation_copy.ACTIVATION_COUNTDOWN_TMPL, v1.14, all-Oran, polarity-flipped) and the clips are
-// rendered from THERE; this string is no longer the source of anything. Kept (not deleted) only as a
-// historical reference this pass — do not wire it to new callers, and do not treat its text as current.
-// The Web-Speech path also never played on Android WebView: speechSynthesis.getVoices() populates
-// asynchronously, so the voices-ready guard below trips on the first synchronous ask every time and the
-// function returns before speak() is ever reached (logcat showed zero TTS activity). All member-facing
-// lines are now pre-recorded Polly clips on the _saPlayOnce pipeline.
-function playVoiceMessage(windowSeconds = ALARM_CANCEL_WINDOW_SECONDS) {
-  // v2 — replace with a pre-recorded Amy Neural file (new Audio('https://static.iona.today/audio/alert-message.mp3')).
-  // Feature 010: the cancel window is member-configured (5–60s); windowSeconds is interpolated below (FR-010).
-  // Spoken wording remains owner-reserved (copy session) — only the number is made dynamic here.
-  return new Promise((resolve) => {
-    const ctx = getAudioContext();
-    const fallback = () => {
-      const freqs = [880, 660, 550];
-      freqs.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-        osc.connect(g); g.connect(ctx.destination);
-        osc.type = 'sine';
-        const t = ctx.currentTime + i * 0.4;
-        osc.frequency.setValueAtTime(freq, t);
-        g.gain.setValueAtTime(0.4, t);
-        g.gain.linearRampToValueAtTime(0, t + 0.3);
-        osc.start(t); osc.stop(t + 0.3);
-      });
-      setTimeout(resolve, freqs.length * 400 + 100);
-    };
-    if (!window.speechSynthesis || speechSynthesis.getVoices().length === 0) {
-      fallback(); return;
-    }
-    const msg = new SpeechSynthesisUtterance(
-      `This is Iona. You have pressed the HELP button. If you do not cancel within ${windowSeconds} seconds, we will attempt to call your contacts to let them know you are in need of assistance.`
-    );
-    msg.rate = 0.95;
-    msg.pitch = 1.0;
-    msg.volume = 1.0;
-    const fallbackTimer = setTimeout(() => { speechSynthesis.cancel(); fallback(); }, 12000);
-    msg.onend = () => { clearTimeout(fallbackTimer); resolve(); };
-    msg.onerror = () => { clearTimeout(fallbackTimer); fallback(); };
-    speechSynthesis.speak(msg);
-  });
-}
+// DELETED 2026-07-24 — playVoiceMessage(), the old Web-Speech activation prompt ("This is Iona. You have
+// pressed the HELP button. …"). It had been retired from member-facing use at Amendment 8, its wording was
+// superseded by the deck, and it carried the member-facing word "alarm" that the beacon ruling retired. It
+// was proven unreferenced before deletion (no call site anywhere in www/ or android/, comments only). The
+// countdown line is owned solely by escalation_copy.ACTIVATION_COUNTDOWN_TMPL and reaches the member as a
+// pre-recorded Polly clip via _activationClipFor() on the _saPlayOnce pipeline. Two standing reasons not to
+// reintroduce a TTS path here: the Android WebView never played it (speechSynthesis.getVoices() populates
+// asynchronously, so the voices-ready guard tripped on the first synchronous ask every time and the function
+// returned before speak() was reached — logcat showed zero TTS activity), and member-facing copy is
+// owner-ruled in the deck, where it can be auditioned before it is ever spoken.
 
 // Bridge hard-failure fallthrough line. Amendment 9 condition 3 moved it off TTS onto the clip pipeline
 // (it had never played for TWO reasons: the Android-WebView voices-guard, AND no caller at all).
@@ -1178,10 +1143,21 @@ function _showStopControl() {
    sentence.
 
    _hideStopControl() also unlocks the nav (_lockNav(false)); both belong to the live calling state and
-   neither belongs to a terminal, which is why the member could not reach Settings from the stuck card. */
-function _showTerminalCard() {
+   neither belongs to a terminal, which is why the member could not reach Settings from the stuck card.
+
+   B1 (2026-07-24) — the card's VOICE rides this same choke point, for the same reason. The exhausted
+   terminal closes Oran's Promise, so it wears his amber + Eagle Lake title; every other terminal keeps
+   the existing teal/green success styling (their voice is a B3 decision, not yet ruled). Because ONE card
+   element is shared by five terminals, a voice class added in a branch and not removed elsewhere would
+   bleed amber onto the success card the next time it rendered. Passing the voice INTO the single reveal
+   point makes that structurally impossible: the default is no-voice, and the toggle runs on every reveal,
+   so a terminal cannot inherit a previous terminal's voice by forgetting to reset it. */
+function _showTerminalCard(opts) {
   _hideStopControl();
-  document.getElementById('alarm-terminal-card').classList.remove('hidden');
+  const card = document.getElementById('alarm-terminal-card');
+  // Default OFF — every reveal re-decides, so the class can never survive into another terminal.
+  card.classList.toggle('alarm-terminal-card--oran', !!(opts && opts.voice === 'oran'));
+  card.classList.remove('hidden');
 }
 
 function showTerminalState() {
@@ -1205,7 +1181,7 @@ function showTerminalState() {
   // safe because these subs are STATIC literals with no interpolation. Any future sub that
   // carries a name or number must go back to textContent.
   document.getElementById('alarm-terminal-sub').innerHTML   = 'Press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
-  _showTerminalCard();
+  _showTerminalCard({ voice: 'oran' });   // B1 — the escalation-exhausted terminal closes Oran's Promise
   document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-okay').classList.remove('btn--pulse');
   // Both buttons, matching ⑥: I NEED HELP (retry) + Return to Iona. escalation_state STAYS 'terminal' (set
@@ -3602,7 +3578,9 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
     showSuccessTerminal({ leadCopy: 'We connected you with', name: connectedName, nameFallback: 'your contact', callPhone: contactPhone });
     return;
   }
-  _showTerminalCard();
+  // B1 — Oran's voice is gated to the EXHAUSTED branch only. terminal_dropped and terminal_failed_join
+  // (N4) share this reveal and stay on the existing styling until B3 rules them.
+  _showTerminalCard({ voice: state === 'terminal_exhausted' ? 'oran' : null });
   // 60s auto-return to resting Today (the EXHAUSTED terminal). Cancelled by a manual Return-to-Iona,
   // a fresh I NEED HELP press, or any resting-Today reset.
   _clearBridgeTerminalReturnTimer();
@@ -5065,7 +5043,7 @@ async function _deviceDialTerminal(reason) {
     document.getElementById('alarm-terminal-sub').innerHTML   = 'Please allow phone access, then press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.';
   } else {
     document.getElementById('alarm-terminal-title').textContent = 'I\'ve called all your contacts.';
-    document.getElementById('alarm-terminal-sub').innerHTML   = 'If you still need help, press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again, or return to Iona.';
+    document.getElementById('alarm-terminal-sub').innerHTML   = 'To try again, press <span class="terminal-instr-help">ALERT CONTACTS</span>, or return to Iona.';
   }
   document.getElementById('btn-alert').classList.remove('hidden');
   document.getElementById('btn-alert').classList.remove('btn--pulse');
@@ -5179,7 +5157,7 @@ function _initFlicListeners() {
   // I.4): the person felt the click and believes help is coming, so surface it (+ it's logged natively).
   Flic.addListener('summonDropped', (e) => {
     console.warn('[Flic] summon dropped — too old to act on', e);
-    _showCalmNote('A button press just now couldn’t be acted on — press again if you need help.');
+    _showCalmNote('A button press just now couldn’t be acted on — press again to reach your contacts.');
   });
   // RULING 3 (21 Jul) — FIRST, before either consumer below can start a fresh activation and overwrite
   // the pending marker: an activation left unresolved by an app-close/swipe is recorded as the cancel it

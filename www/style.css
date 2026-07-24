@@ -25,6 +25,11 @@
   --text: #ECF2F6;
   --text-muted: #586A7A;
   --text-soft: var(--text-soft);            /* secondary muted (You-card, subs) */
+  /* B1 — the exhausted terminal's reassurance line. Lighter than --text-muted: at 16px on the navy card
+     this is the line an anxious member most needs to read cleanly, so it is deliberately raised off the
+     muted tone. Themed (not a raw hex at the use site) so the Day flip stays legible — #8CA0B0 on white
+     would be ~2.8:1 and fail. */
+  --terminal-sub-oran: #8CA0B0;
   --teal: #25C9BA;                 /* Iona identity teal — flips to teal-500 on light */
   --teal-glow: #34ECD9;            /* bright teal — flips to teal-500 on light */
   --teal-deep: #13A99B;
@@ -58,6 +63,7 @@ body.light {
   --text: #0C1C30;
   --text-muted: #7A8D9D;
   --text-soft: #6B8299;
+  --terminal-sub-oran: #6B8299;    /* Day: the night #8CA0B0 fails contrast on the white card */
   --teal: #13A99B;
   --teal-glow: #13A99B;
   --on-accent: #081424;
@@ -82,6 +88,15 @@ body {
   --fs-hint:      calc(12px * var(--text-scale)); /* .settings-hint */
   --fs-empty:     calc(13px * var(--text-scale)); /* .settings-empty-state p */
   --fs-nav:       calc(11px * var(--text-scale)); /* .nav-tab label */
+  /* B2 (2026-07-24) — the terminal card joins the scaling system. It had carried raw px since it was
+     built, so US6 did NOT scale the most safety-critical card in the app: a member on "Larger" read the
+     end-of-escalation outcome at the same size as one on Standard. That was a pre-existing accessibility
+     gap, not one this pass introduced. The BASE values here are the CURRENT sizes deliberately — closing
+     the gap must not silently resize the success and N4 cards, which are held for B3. The exhausted card
+     re-declares both tokens at its own larger base (see .alarm-terminal-card--oran), which is why these
+     are tokens on a scalable scale rather than two fixed numbers. */
+  --fs-terminal-title: calc(14px * var(--text-scale)); /* .alarm-terminal-title */
+  --fs-terminal-sub:   calc(12px * var(--text-scale)); /* .alarm-terminal-sub */
 }
 /* OWNER-TUNABLE: edit only these two numbers. base (Standard) = 1 (above). */
 body[data-text-size="large"] { --text-scale: 1.22; }  /* Large */
@@ -1523,14 +1538,54 @@ body.light .btn-okay.btn--dim {
   font-size: 18px; color: var(--signal-well);
 }
 .alarm-terminal-title {
-  font-size: 14px;
+  font-size: var(--fs-terminal-title);   /* B2 — was a raw 14px; US6 could not scale it */
   font-weight: 600;
   color: var(--text);
 }
 .alarm-terminal-sub {
-  font-size: 12px;
+  font-size: var(--fs-terminal-sub);     /* B2 — was a raw 12px */
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+/* ===== B1 (2026-07-24) — the EXHAUSTED terminal, in Oran's voice ==========================
+   The card a member reads when the sweep finished with no contact acknowledgement. It closes Oran's
+   Promise, so it is HIS card: his amber, his face on the title. Everything here is scoped to
+   .alarm-terminal-card--oran, which _showTerminalCard() sets only for the exhausted state — the success
+   and N4 terminals share this same card element and are held for B3, so a blanket .alarm-terminal-*
+   restyle would have silently recoloured two unsigned cards.
+
+   Two registers, as on the bridge success card: the TITLE carries the voice (Eagle Lake, amber), the SUB
+   stays plain Hanken. The sub is functional reassurance read at the most anxious moment — legibility wins
+   over character there, and cursive is the wrong tool for it.
+
+   'Eagle Lake', cursive is written out rather than var(--msg-font-oran) to match the existing idiom on
+   .alarm-esc-label--oran (the calling screen's "Oran's Promise" title). Consequence worth knowing: like
+   that label, this title does NOT flip to Hanken in US8 Easy-read. The sub does the legibility work. */
+.alarm-terminal-card--oran {
+  /* Larger base for both tokens — still × --text-scale, so US6 keeps working (B2). */
+  --fs-terminal-title: calc(19px * var(--text-scale));
+  --fs-terminal-sub:   calc(16px * var(--text-scale));
+  border: 1.5px solid var(--amber-500);
+  gap: 18px;                 /* was 10px — closes the dead bands above/below the content */
+  padding: 26px 20px;
+}
+.alarm-terminal-card--oran .alarm-terminal-title {
+  font-family: 'Eagle Lake', cursive;
+  font-weight: 400;          /* the face ships 400 only */
+  color: var(--amber-400);
+  /* 19px Eagle Lake reads ≈ 23px Hanken optically — its x-height runs large. Setting it AT 23px
+     oversizes the card. Same optical note as .alarm-esc-label--oran. */
+}
+.alarm-terminal-card--oran .alarm-terminal-sub {
+  color: var(--terminal-sub-oran);
+}
+.alarm-terminal-card--oran .alarm-terminal-icon {
+  width: 64px; height: 64px;
+  font-size: 30px;
+  background: rgba(224,151,58,0.16);
+  border: 1.5px solid rgba(224,151,58,0.42);
+  color: var(--amber-400);   /* the check glyph stays — the promise was kept — only its colour moves */
 }
 /* 009 (R-009-22) — N4 failed-join card PRIMARY action: a device-driven "Call {name}" to the accepting
    contact (a real carrier call). Sits inside the terminal card, above the shell's I-NEED-HELP / Return
