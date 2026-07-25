@@ -845,12 +845,50 @@ body.light .btn-okay.btn--dim {
   padding: 26px 16px 16px;  /* extra top padding so the orb isn't crowded against the top edge */
   margin-bottom: 8px;
 }
+/* The Today orb in miniature (signed mockup iona_settings_orb_teal_amber_pings_final, 26 Jul).
+   Core gradient + teal glow lifted verbatim from .orb-backdrop-core so the two cannot drift.
+   56px, not 64px — the smaller disc leaves the ping rings room inside the 64px slot.
+   BREATHE: iona-breathe, NOT orb-breathe. orb-breathe carries translate(-50%,-50%) because the Today
+   core is absolutely positioned off its own centre; on this in-flow card element that translate would
+   shove the disc a full half-width up and left. iona-breathe is scale/brightness only. */
 .orb-card-visual {
-  width: 64px;
-  height: 64px;
+  position: relative;                    /* the ping rings position against the disc */
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 42%, #E0973A 0%, #B8742A 70%);
-  box-shadow: 0 0 0 5px rgba(37, 201, 186, 0.15), 0 0 18px rgba(224, 151, 58, 0.35);
+  background: radial-gradient(circle at 38% 32%,
+    #FCEFD3 0%,
+    #F5C97B 30%,
+    #E0973A 70%,
+    #BE7926 100%
+  );
+  box-shadow: 0 0 18px rgba(37,201,186,0.45), 0 0 44px rgba(37,201,186,0.22);
+  animation: iona-breathe 4.2s ease-in-out infinite;
+}
+/* Two contained pings — teal and amber together, the ON-state orb's pairing (.orb--btn-on runs both).
+   Pseudos, not elements: the markup is a bare aria-hidden div and the brief holds it unchanged.
+   They inherit the parent's breathe transform, so the peak compounds — see the keyframe note below. */
+.orb-card-visual::before,
+.orb-card-visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: orb-card-ping 2.8s ease-out infinite;
+  pointer-events: none;
+}
+.orb-card-visual::before { border: 3px solid #34ECD9; }
+.orb-card-visual::after  { border: 3px solid rgba(245,201,123,0.9); animation-delay: 1.4s; }
+
+/* Peak 1.8x, NOT the brief's ~2.3x — CC's figure, not a ruled one, and trivially changed.
+   Measured on the 6a: at 2.3x the ring peaks at 136.5px and crosses the card's TOP border by 13.97px,
+   which fails the brief's own "rings stay inside the card". The card has only 26px of top padding, and
+   the ring compounds with the parent breathe (2.3 x 1.06). The containing figure is
+   (26 + 28) / (28 x 1.06) = 1.83, so 1.8 leaves the ring fading to nothing just inside the card edge.
+   To keep the ruled 2.3x instead, .orb-card needs padding-top ~41px — which moves the toggle row. */
+@keyframes orb-card-ping {
+  0%        { transform: scale(1);   opacity: 0.55; }
+  80%, 100% { transform: scale(1.8); opacity: 0; }
 }
 .orb-card-row {
   width: 100%;
@@ -1489,6 +1527,10 @@ body.light .btn-okay.btn--dim {
   /* both scoped orbs — a bare .oran-orb would now lose the specificity contest to the scoped rules */
   .oran-status .oran-orb, .login-orb-wrap .oran-orb,
   .alarm-escalation-card--oran .alarm-esc-sub::before { animation: none; }
+  /* Settings orb — core breathe and both ping rings stop; the gradient + teal glow still read. */
+  .orb-card-visual,
+  .orb-card-visual::before,
+  .orb-card-visual::after { animation: none; }
 }
 .alarm-contact-row {
   display: flex;
@@ -2260,11 +2302,26 @@ body.light .btn-okay.btn--dim {
   border-radius: 14px; padding: 16px; margin-bottom: 12px;
 }
 .sc-card-h { font-size: var(--fs-hint); font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
-.sc-days { display: flex; justify-content: space-between; }
+/* Seven day circles ALWAYS render (SC_ALL_DAYS — a smaller plan disables, it does not remove), so the
+   old `flex: 0 0 auto; width: 40px` row demanded a fixed 280px. This card's content box is only 246px
+   on a handset at an enlarged Display size (320px viewport), so the last circle spilled 33.78px past
+   the row and 16.89px PAST THE CARD BORDER — measured on the 6a 26 Jul, #sc-days scrollWidth 280/246.
+   Grid columns share whatever width exists: the circle keeps its 40px wherever there is room and
+   shrinks to fit where there is not. aspect-ratio keeps it a circle at every column width.
+   minmax(0, 1fr), NOT 1fr: a bare `1fr` is `minmax(auto, 1fr)`, and that `auto` floor is the button's
+   min-content width — so at Large/Larger the circles grew with the font and spilled again (measured:
+   39.03px circles, 34.12px past the card border at Larger). min-width: 0 on the item is the other half
+   of the same trap. */
+.sc-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; justify-items: center; }
 .sc-day {
-  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+  width: 100%; min-width: 0; max-width: 40px; aspect-ratio: 1 / 1; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border); background: var(--surface-2);
   font: inherit; font-size: var(--fs-row-label); font-weight: 600; color: var(--text); cursor: pointer;
+  /* line-height AFTER `font: inherit` — the font shorthand resets line-height, so declaring it above
+     is silently discarded. An inherited 1.5 makes the letter's line box taller than the column at
+     Large/Larger, and content height beats aspect-ratio: the circle became an ellipse (31.75 x 39.03). */
+  line-height: 1;
 }
 .sc-day.is-on { background: var(--teal); border-color: var(--teal); color: var(--on-accent); }
 .sc-day:disabled { opacity: 0.35; cursor: default; }
@@ -2300,7 +2357,11 @@ body.light .btn-okay.btn--dim {
 .sc-day-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .sc-day-row:last-child { border-bottom: none; }
 .sc-day-name { font-size: var(--fs-row-label); font-weight: 700; color: var(--text); margin-bottom: 8px; }
-.sc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* padding-right absorbs the .sc-chip-x overhang (right: -5px). Without it the delete badge on the
+   RIGHTMOST chip of a line sits 5px outside this row's content box and eats into the card gutter.
+   Do NOT use overflow: hidden here — the badge is meant to sit proud of its chip; clipping it is the
+   destructive fix. Measured on the 6a 26 Jul: 5px at every text size, chipsScrollWidth 251 vs 246. */
+.sc-chips { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 5px; }
 .sc-chip { position: relative; display: flex; align-items: center; flex: 1 1 100px; min-width: 96px; }
 .sc-chip-inp {
   height: 44px; width: 100%; min-width: 0; padding: 0 12px; text-align: center;

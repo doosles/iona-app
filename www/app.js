@@ -1558,11 +1558,11 @@ function _renderReactiveMethodPicker() {
   if (entitled) {
     hfRow.setAttribute('role', 'radio');
     hfRow.setAttribute('aria-checked', (!escSel).toString());
-    hfRow.setAttribute('aria-label', 'Speakerphone');
+    hfRow.setAttribute('aria-label', "Oran's Signal (Speakerphone)");
   } else {
     hfRow.setAttribute('role', 'button');
     hfRow.removeAttribute('aria-checked');
-    hfRow.setAttribute('aria-label', 'Add speakerphone');
+    hfRow.setAttribute('aria-label', "Add Oran's Signal (Speakerphone)");
   }
 
   card.hidden = false;
