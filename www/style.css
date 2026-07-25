@@ -1580,12 +1580,32 @@ body.light .btn-okay.btn--dim {
 .alarm-terminal-card--oran .alarm-terminal-sub {
   color: var(--terminal-sub-oran);
 }
+/* RULED 2026-07-25 — the exhausted terminal has NO icon.
+   Two reasons, both standing on their own:
+   (1) HONESTY. A check glyph conventionally reads "success / done / handled". This is the
+       no-acknowledgement card ("None of your contacts are able to help right now."). A tick claims a
+       resolution that did not happen — the same over-claim the copy ruling already stripped out of
+       "on their way" / "they know you need them now", here wearing an icon instead of a sentence.
+       The amber border + Eagle Lake title + amber sub carry Oran's voice on their own.
+   (2) SPACE. On-device the card's content scrolled inside .today-messages at the member's system
+       font scale. The card element itself never overflows — it is flex:1, so it GROWS to fit its
+       content and scrollHeight always equals clientHeight; the scroll happens one level up, in the
+       container. The icon was 64px + the card's 18px gap ≈ 82px of that height.
+
+   display:none, NOT visibility/opacity — a hidden-but-laid-out element still occupies its height and
+   still takes a flex gap, so the scroll would not resolve. A display:none child is not a flex item at
+   all, so its gap collapses with it.
+
+   Scoped to --oran deliberately: the success / N4 cards (B3) keep their icon, and the base
+   .alarm-terminal-icon rule above is untouched. This rides the existing class toggle in
+   _showTerminalCard(), which defaults OFF and re-decides on every reveal — so the icon cannot go
+   missing on the next success card. Hiding it in JS instead would need a paired un-hide at a second
+   site, which is exactly the bleed trap the voice gate was built to make structurally impossible.
+
+   The former amber icon styling (64px box, 30px glyph, amber-400 on a 0.16 amber wash) is in git
+   history at 45a643e if this is ever reversed. */
 .alarm-terminal-card--oran .alarm-terminal-icon {
-  width: 64px; height: 64px;
-  font-size: 30px;
-  background: rgba(224,151,58,0.16);
-  border: 1.5px solid rgba(224,151,58,0.42);
-  color: var(--amber-400);   /* the check glyph stays — the promise was kept — only its colour moves */
+  display: none;
 }
 /* 009 (R-009-22) — N4 failed-join card PRIMARY action: a device-driven "Call {name}" to the accepting
    contact (a real carrier call). Sits inside the terminal card, above the shell's I-NEED-HELP / Return
