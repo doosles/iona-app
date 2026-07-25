@@ -1157,6 +1157,15 @@ function _showTerminalCard(opts) {
   const card = document.getElementById('alarm-terminal-card');
   // Default OFF — every reveal re-decides, so the class can never survive into another terminal.
   card.classList.toggle('alarm-terminal-card--oran', !!(opts && opts.voice === 'oran'));
+  // B3 (2026-07-25) — Iona's teal voice: success + N4. SAME mechanism, not a parallel one: both classes
+  // are re-decided here on every reveal, so neither can bleed into a terminal that did not ask for it,
+  // in either direction (amber onto success, teal onto exhausted).
+  card.classList.toggle('alarm-terminal-card--iona', !!(opts && opts.voice === 'iona'));
+  // The glyph is shared state too, so it rides the same single authority. N4 is the only terminal that
+  // wants a phone; everything else gets the check back by DEFAULT — a per-branch swap without a default
+  // reset would leave a phone glyph on the next success card, the icon twin of the class-bleed bug.
+  const glyph = card.querySelector('.alarm-terminal-icon i');
+  if (glyph) glyph.className = 'ti ' + ((opts && opts.glyph) || 'ti-check');
   card.classList.remove('hidden');
 }
 
@@ -1238,7 +1247,7 @@ function showSuccessTerminal({ leadCopy, name, nameFallback, subLines, callPhone
     ? subLines.map((l) => `<span class="terminal-instr-line">${l}</span>`).join('')
     : ('<span class="terminal-instr-line">Press <span class="terminal-instr-help">ALERT CONTACTS</span> again</span>' +
        '<span class="terminal-instr-line">anytime you need it</span>');
-  _showTerminalCard();
+  _showTerminalCard({ voice: 'iona' });   // B3 — the success card is Iona's: teal, her cursive name
   document.getElementById('btn-okay').classList.add('hidden');
   document.getElementById('btn-okay').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.add('hidden');
@@ -3580,7 +3589,14 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
   }
   // B1 — Oran's voice is gated to the EXHAUSTED branch only. terminal_dropped and terminal_failed_join
   // (N4) share this reveal and stay on the existing styling until B3 rules them.
-  _showTerminalCard({ voice: state === 'terminal_exhausted' ? 'oran' : null });
+  // B3 — N4 joins Iona's teal: a contact ANSWERED and is standing by, so it is a partial success, not a
+  // failure, and it carries a PHONE glyph rather than a check (nothing is completed yet). The dropped card
+  // (008) is deliberately left in the plain shell — it is neither outcome, and was not in the B3 signing.
+  _showTerminalCard(
+    state === 'terminal_exhausted'   ? { voice: 'oran' } :
+    state === 'terminal_failed_join' ? { voice: 'iona', glyph: 'ti-phone' } :
+                                       { voice: null }
+  );
   // 60s auto-return to resting Today (the EXHAUSTED terminal). Cancelled by a manual Return-to-Iona,
   // a fresh I NEED HELP press, or any resting-Today reset.
   _clearBridgeTerminalReturnTimer();

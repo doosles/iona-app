@@ -1625,6 +1625,52 @@ body.light .btn-okay.btn--dim {
 .alarm-terminal-card--oran .alarm-terminal-icon {
   display: none;
 }
+
+/* ===== B3 (2026-07-25) — the SUCCESS and N4 terminals, in Iona's voice ======================
+   Signed mockup: iona_b3_success_parity_and_n4_options. Brings both cards up to the standard B1 set for
+   the exhausted card. COPY IS UNCHANGED on both — this is size and breathing room only.
+
+   Two cards, one class: SUCCESS (a contact acknowledged, or the bridge connected) and N4 (a contact
+   answered and is standing by). Both are Iona outcomes — someone is coming — so both wear her teal,
+   against Oran's amber on the card where nobody could be reached.
+
+   FIXED px throughout, deliberately NOT calc(… * var(--text-scale)). This is the lesson the exhausted
+   card was pinned for earlier the same day: a card that scales with US6 outgrows a frame that does not,
+   and the success card is the WORST case for it — it carries the 32px cursive name AND, on the bridge
+   path, the "Call {name}" button. Fixed sizing is what makes overflow impossible by construction rather
+   than tuned away per setting.
+
+   Note on --fs-terminal-title: only N4 reads it (its title is a single plain line — option (a) of the
+   brief). The success card's title is the lead/name span pair, which carry their own sizes below, so the
+   token never reaches it. Pinned anyway so N4 cannot scale either.
+
+   Scoped to --iona and toggled at the single reveal point in _showTerminalCard(), defaulting OFF — the
+   B1 rule, extended rather than duplicated, so no terminal can inherit another's voice in either
+   direction. The base .alarm-terminal-* rules are untouched: the dropped (008) card and the device-dial
+   / service-test terminals keep the plain shell. */
+.alarm-terminal-card--iona {
+  --fs-terminal-title: 20px;   /* N4's single-line title only (see note above) */
+  --fs-terminal-sub:   16px;   /* the instruction lines on both cards — was 12px */
+  border: 1.5px solid var(--signal-well);   /* was 0.5px — same weight as the exhausted card's border */
+  /* Signed at 16px; shipped at 14px — the brief's first fallback lever, needed and measured.
+     N4 was the binding case, not the success card the brief expected: N4 stacks FOUR children
+     (icon · title · sub · Call button) so it pays three gaps, and its content sits at a fixed 413px
+     while the frame SHRINKS with US6 (415 → 411 → 408) as the surrounding chrome scales. At 16px it
+     overflowed 2px at Large and 5px at Larger. 14px clears every size; 12px was no better, so this is
+     the smallest lever that works. Copy and the 32px name were not touched, per the ruling. */
+  gap: 14px;                   /* was 10px — closes the dead bands, mirroring B1's 18px */
+  padding: 26px 20px;          /* the base card declares none, so this is the first real breathing room */
+}
+.alarm-terminal-card--iona .alarm-terminal-icon {
+  width: 56px; height: 56px;   /* was 40px */
+  font-size: 26px;             /* the glyph itself — was 18px */
+  border-width: 1.5px;         /* was 1px; colour + teal wash inherited from the base rule */
+}
+/* The two title rows of the SUCCESS card. Family stays var(--msg-font-iona), so US8 Easy-read still
+   flips them out of cursive — only the size is fixed here, never the face. */
+.alarm-terminal-card--iona .terminal-conn-lead { font-size: 15px; }   /* was 13px */
+.alarm-terminal-card--iona .terminal-conn-name { font-size: 32px; }   /* was 26px */
+
 /* 009 (R-009-22) — N4 failed-join card PRIMARY action: a device-driven "Call {name}" to the accepting
    contact (a real carrier call). Sits inside the terminal card, above the shell's I-NEED-HELP / Return
    floor. N4-only (hidden for every other terminal). */
