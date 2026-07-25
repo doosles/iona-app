@@ -107,9 +107,13 @@
         <div class="alarm-terminal-icon">
           <i class="ti ti-check" aria-hidden="true"></i>
         </div>
-        <div class="alarm-terminal-title" id="alarm-terminal-title">I've tried your contacts.</div>
-        <!-- v2: copy becomes dynamic when econtact acknowledgement is built — FCM escalation_complete payload will include outcome status -->
-        <div class="alarm-terminal-sub" id="alarm-terminal-sub">If someone is able to help, they are on their way.</div>
+        <!-- DEAD PLACEHOLDER — no member ever reads these two lines. The card is born `hidden` and every
+             one of the five _showTerminalCard() reveal points writes BOTH title and sub first (escalation
+             exhausted, success, the bridge terminal branches, device-dial, service test). Kept mirroring the
+             live exhausted copy so the source stops lying to the next reader; it is NOT one of the four
+             copy-sync sites in master-ref §22, so it carries no obligation to move with escalation_copy.py. -->
+        <div class="alarm-terminal-title" id="alarm-terminal-title">None of your contacts are able to help right now.</div>
+        <div class="alarm-terminal-sub" id="alarm-terminal-sub">Press <span class="terminal-instr-help">ALERT CONTACTS</span> to try again.</div>
         <!-- 009 (R-009-22) — N4 failed-join card ONLY: device-driven "Call [Name]" to the accepting contact
              (a real carrier call from the member's own phone via ZeroCall). Hidden for every other terminal. -->
         <button id="btn-call-contact" class="btn-call-contact hidden"></button>
