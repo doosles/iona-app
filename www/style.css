@@ -1563,9 +1563,27 @@ body.light .btn-okay.btn--dim {
    .alarm-esc-label--oran (the calling screen's "Oran's Promise" title). Consequence worth knowing: like
    that label, this title does NOT flip to Hanken in US8 Easy-read. The sub does the legibility work. */
 .alarm-terminal-card--oran {
-  /* Larger base for both tokens — still × --text-scale, so US6 keeps working (B2). */
-  --fs-terminal-title: calc(19px * var(--text-scale));
-  --fs-terminal-sub:   calc(16px * var(--text-scale));
+  /* RULED 2026-07-25 — THE EXHAUSTED TERMINAL IS OUT OF US6. Supersedes B2 tokenisation for THIS card
+     only (success / N4 keep scaling; the base --fs-terminal-* tokens above are untouched).
+
+     Fixed px, deliberately NOT calc(… * var(--text-scale)) — these must not move when
+     body[data-text-size] changes. The values are the Large tier of the old scale (19 × 1.22 ≈ 23,
+     16 × 1.22 ≈ 20), so the card now always renders at the size a member on "Large" already saw.
+
+     WHY: with the icon gone the card still overflowed .today-messages at "Larger" — the card scaled
+     with US6 while the frame did not. A card that cannot grow cannot outgrow its frame, so the
+     overflow is closed by construction at every setting rather than tuned away per size.
+
+     CAVEAT worth knowing: this opts out of the APP's text-size setting, not the ANDROID system font
+     scale. WebView textZoom multiplies every px, so on a handset at 1.15 these render ≈26.5/23.0.
+     That is correct behaviour — a member who enlarges system text still gets larger text here — and
+     it is why a computed-style read will not return a literal 23px on such a device.
+
+     (The former note here — "19px Eagle Lake reads ≈ 23px Hanken optically, setting it AT 23px
+     oversizes the card" — was about the BASE/Standard value, not this pin, and is not contradicted:
+     23px is what the old 19px base already produced at Large.) */
+  --fs-terminal-title: 23px;
+  --fs-terminal-sub:   20px;
   border: 1.5px solid var(--amber-500);
   gap: 18px;                 /* was 10px — closes the dead bands above/below the content */
   padding: 26px 20px;
