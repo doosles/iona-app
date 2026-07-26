@@ -1522,14 +1522,24 @@ const HANDSFREE_ADDON_PRICE_LABEL = 'Add £6';
 
 // Feature 004 — render the reactive-method picker from the last /pwa-status read. Entitled → both rows
 // selectable (hands-free marked "Included"); not entitled → the hands-free row becomes the add-invitation
-// (price pill → dashboard #account) in the SAME geometry (no reflow). Only renders after a KNOWN read
-// (_statusReadOk) so a failed/offline read never mislabels entitlement. Selection shows the EFFECTIVE
+// (price pill → dashboard #account) in the SAME geometry (no reflow). It only ever DISPLAYS values from
+// a KNOWN read (_statusReadOk), so a failed/offline read never mislabels entitlement; but once it has
+// rendered once, a later failed read leaves that render standing rather than hiding the card (26 Jul —
+// see the gate). Selection shows the EFFECTIVE
 // way: a stored 'handsfree' with no entitlement displays the standard way — mirrors the press-time
 // fallback (entitlement wins over stored preference).
 function _renderReactiveMethodPicker() {
   const card = document.getElementById('reactive-method-card');
   if (!card) return;
-  if (!_statusReadOk) { card.hidden = true; return; }  // wait for a known read
+  // A failed or timed-out read must NOT remove a control the member is looking at. The card hides only
+  // while it has never been shown; once it has rendered once, an unknown read leaves the last good
+  // render in place. Ruled 26 Jul: stale-but-present beats absent, because the read fails inside the
+  // 6s box often enough (measured 3.2s and 4.9s against it) that hiding turns a transient network blip
+  // into a control that is simply gone, with nothing on screen to say why or that it will return.
+  // The latch lives on the ELEMENT, so a WebView reload returns it to never-shown and no stale render
+  // survives a relaunch. Values only ever come from a 200 — this changes when the card is CLEARED,
+  // never what it displays.
+  if (!_statusReadOk) { if (!card.dataset.rendered) card.hidden = true; return; }
 
   const entitled  = _hasHandsFree === true;
   const stored    = _escalationMode === 'handsfree' ? 'handsfree' : 'escalation';
@@ -1540,7 +1550,9 @@ function _renderReactiveMethodPicker() {
   const escRadio = document.getElementById('method-esc-radio');
   const hfRadio  = document.getElementById('method-hf-radio');
   const hfPrice  = document.getElementById('method-hf-price');
-  if (!escRow || !hfRow) return;
+  if (!escRow || !hfRow || !escRadio || !hfRadio || !hfPrice) return;  // all five — a missing id used to
+  // throw mid-function, after the escalation row's selection classes and before the hands-free row's,
+  // leaving a visibly half-selected picker. Not currently biting; the guard costs nothing.
 
   // selection — exactly one
   const escSel = effective === 'escalation';
@@ -1552,7 +1564,13 @@ function _renderReactiveMethodPicker() {
 
   // entitled → radio + "Included"; not entitled → the SAME control slot holds the price pill instead.
   // Radio/pill/badge visibility is driven purely by the .method-row--upgrade class in CSS, so the slot
-  // always holds exactly one element — no appended sibling, no reflow (SC-004).
+  // always holds exactly one element — no appended sibling.
+  // ⚠ CORRECTED 26 Jul 2026 — the old comment ended "no reflow (SC-004)". That claim is true of the
+  // slot's CHILD COUNT and false of the row's GEOMETRY. `.method-control` has no width, so it is
+  // content-sized: 22px around the radio, ~66px around the price pill. The label column therefore
+  // measures 171.04px entitled and 126.94px upgrade — a ~44px shift driven purely by entitlement,
+  // which is the FR-011 violation ("same position and shape whether selectable or add-invitation")
+  // and the root cause of the title overflow. Open; do not re-assert no-reflow until the slot is fixed.
   hfPrice.textContent = HANDSFREE_ADDON_PRICE_LABEL;  // single placeholder source (FR-021)
   hfRow.classList.toggle('method-row--upgrade', !entitled);
   if (entitled) {
@@ -1565,6 +1583,7 @@ function _renderReactiveMethodPicker() {
     hfRow.setAttribute('aria-label', "Add Oran's Signal (Speakerphone)");
   }
 
+  card.dataset.rendered = '1';  // latch — from here a failed read keeps this render instead of clearing it
   card.hidden = false;
 }
 
