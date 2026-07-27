@@ -24,7 +24,14 @@
   --border-soft: #294662;          /* lighter navy hairline */
   --text: #ECF2F6;
   --text-muted: #586A7A;
-  --text-soft: var(--text-soft);            /* secondary muted (You-card, subs) */
+  --text-soft: #A2B3C2;            /* secondary muted (You-card, subs) — mist-400, the ramp step
+                                      between --text (#ECF2F6/mist-100) and --text-muted (#586A7A/mist-600).
+                                      Was `var(--text-soft)` — self-referential, therefore guaranteed-invalid,
+                                      so all 10 consumers fell back in NIGHT only (day redefines it at :65).
+                                      Worst of it was `.bout-card`'s `border` SHORTHAND: an invalid var()
+                                      voids the whole declaration, so border-style took its initial `none`
+                                      and the You-card had no border at all. Literal hex, not var(--mist-400),
+                                      to match every other night semantic in this block (US7 v5.14). */
   /* B1 — the exhausted terminal's reassurance line. Lighter than --text-muted: at 16px on the navy card
      this is the line an anxious member most needs to read cleanly, so it is deliberately raised off the
      muted tone. Themed (not a raw hex at the use site) so the Day flip stays legible — #8CA0B0 on white
@@ -453,19 +460,27 @@ button:active {
   border: 1.5px solid var(--text-soft);    /* neutral light grey — matches the message text colour */
   border-radius: 16px;
   padding: 14px;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  max-width: 85%;
-}
-
-.bout-content {
+  /* COLUMN, not row (27 Jul). Previously [content | avatar] side by side: the avatar is only 22px
+     tall and top-aligned, so beneath it sat ~22x49px of dead space while the message was squeezed
+     into the narrower left column and stopped 34px short of the card's inner right edge.
+     Now: header row [label · avatar] on top, message below spanning the FULL width — so the text
+     runs under the avatar and the gap closes. NOTE this is a deliberate departure from .iona-card,
+     which keeps its orb-left/content-right split. */
   display: flex;
   flex-direction: column;
   align-items: flex-end;          /* right-align header + message — the user's side */
   gap: 4px;
+  max-width: 85%;
+}
+
+.bout-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
+
+.bout-head .bout-label { margin-bottom: 0; }   /* the 5px stack margin would offset the flex row */
 
 .bout-label {
   font-family: 'Hanken Grotesk', system-ui, sans-serif;

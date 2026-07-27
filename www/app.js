@@ -63,19 +63,21 @@ function buildIonaCard(text, timeStr, isReply, character) {
 }
 
 function buildBoutRow(text, timeStr) {
-  // 'You' message card — mirrors the Iona card on the user's (right) side, in a neutral grey tone.
-  // Header [You · time] + avatar on the right; message + checkmark below, right-aligned and nowrap.
+  // 'You' message card on the user's (right) side, in a neutral grey tone.
+  // Header row [You · time  +  avatar], then the message + checkmark BELOW it spanning the full
+  // card width, so the text runs under the avatar instead of leaving a gap beside it (27 Jul).
+  // The avatar moved INTO the header for this reason — it is no longer a full-height second column.
   return `
     <div class="bout-row">
       <div class="bout-card">
-        <div class="bout-content">
+        <div class="bout-head">
           <div class="bout-label">You · ${timeStr}</div>
-          <div class="bout-msg-row">
-            <span class="bout-msg">${text}</span>
-            <i class="ti ti-circle-check-filled bout-check" aria-hidden="true"></i>
-          </div>
+          <div class="bout-avatar"><i class="ti ti-user" aria-hidden="true"></i></div>
         </div>
-        <div class="bout-avatar"><i class="ti ti-user" aria-hidden="true"></i></div>
+        <div class="bout-msg-row">
+          <span class="bout-msg">${text}</span>
+          <i class="ti ti-circle-check-filled bout-check" aria-hidden="true"></i>
+        </div>
       </div>
     </div>`;
 }
