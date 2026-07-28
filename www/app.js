@@ -5577,7 +5577,7 @@ function _cmMakeCard(ord, num, isNew, occ) {
           '<span class="cm-prfx-caret" aria-hidden="true">▾</span>' +
           '<select class="cm-prfx" aria-label="Country dialling code"></select>' +
         '</div>' +
-        '<input type="text" class="cm-num-inp" inputmode="tel" value="' + _cmEsc(sp.rest) + '" placeholder="07123456789"></div>' +
+        '<input type="text" class="cm-num-inp" inputmode="tel" value="' + _cmEsc(sp.rest) + '" placeholder="07XXX XXXXXX"></div>' +
       '<div class="cm-actions"><button class="cm-save">Save contact</button></div>' +
       (num > 1 ? '<button class="cm-remove">Remove this contact</button>' : '') +
       '<div class="cm-confirm">' +
