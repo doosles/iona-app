@@ -2516,7 +2516,11 @@ function showTodayMessage(body, notifData) {
   }
   const timeStr = fmtTime();
   const thread = document.getElementById('today-thread');
-  const character = (notifData?.type === 'reminder_1' || notifData?.type === 'reminder_2' || notifData?.type === 'escalation_complete') ? 'oran' : 'iona';
+  // Captain's ruling 29 Jul 2026: reminder_1 renders as IONA (teal), not Oran. It is still a routine
+  // proactive nudge — the member has simply not replied yet — and Oran's amber should mean escalation
+  // territory, not "you're a bit late". Oran now takes over at reminder_2 (the final reminder, which
+  // names the consequence) and keeps escalation_complete. Those two are deliberately unchanged.
+  const character = (notifData?.type === 'reminder_2' || notifData?.type === 'escalation_complete') ? 'oran' : 'iona';
   const card = buildIonaCard(text, timeStr, false, character);
   if (notifData?.type === 'scheduled_contact') {
     thread.innerHTML = card;
