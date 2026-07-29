@@ -570,6 +570,7 @@ function initLogout() {
       console.error('[Logout] ms.logout() failed:', err);
     }
     await removePreference('fcm_token');
+    await removePreference('fcm_registered_member_id');
     await removePreference('member_airtable_id');
     await removePreference('escalation_state');
     // Clear the offline session + device-dial caches so a logged-out / handed-over phone can't
@@ -599,10 +600,18 @@ function initPushListeners() {
     pushRegistrationPending = false;
     const newToken = token.value;
     const stored = await getPreference('fcm_token');
-    if (newToken !== stored) {
+    const airtableId = await getPreference('member_airtable_id');
+    // The token is only useful BOUND TO A RECORD, so either half changing makes the binding stale.
+    // Gating on the token alone missed the common case: a fresh signup on the same handset returns
+    // the SAME device token against a NEW record id, so the POST was skipped and the new record's
+    // FCM Token field stayed empty — silently, on both sides (29 Jul).
+    const storedAirtableId = await getPreference('fcm_registered_member_id');
+    if (newToken !== stored || airtableId !== storedAirtableId) {
       await setPreference('fcm_token', newToken);
-      const airtableId = await getPreference('member_airtable_id');
-      await registerTokenWithBackend(newToken, airtableId);
+      const sent = await registerTokenWithBackend(newToken, airtableId);
+      // Only a delivered POST advances the record gate. A failed send leaves it stale so the next
+      // launch retries, rather than recording a binding the backend never received.
+      if (sent && airtableId) await setPreference('fcm_registered_member_id', airtableId);
     }
   });
 
@@ -775,10 +784,15 @@ async function registerTokenWithBackend(token, airtableId) {
     if (!res.ok) {
       throw new Error('HTTP ' + res.status);
     }
+    // Returned so the caller can hold the record gate open until the POST actually goes out.
+    // NB this reports DELIVERY, not persistence — /register-token acks 200 before it writes to
+    // Airtable, so a write failure still reads as success here. Separate, parked item.
+    return true;
   } catch (err) {
     console.error('[Push] registerTokenWithBackend failed:', err);
     setMsg('msg-today-warning', 'Setup incomplete — your device may not receive contacts. Please restart the app.');
     document.getElementById('msg-today-warning').classList.remove('hidden');
+    return false;
   }
 }
 
