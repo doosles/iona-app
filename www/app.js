@@ -46,6 +46,55 @@ function fmtTime() {
   return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+// ---------------------------------------------------------------------------
+// OKAY-button phrase — ONE source of truth (29 Jul 2026)
+// ---------------------------------------------------------------------------
+// The Reminder 2 card tints the words naming the OKAY button, so the sentence and the button the
+// member must press read as visibly the same thing.
+//
+// This used to be a hard-coded search for that phrase, spelled out in this file. Nothing connected
+// the literal to the actual button or to the backend copy that produced the sentence — three places
+// holding the same words by coincidence. And the failure was SILENT: reword the copy or relabel the
+// button, even just its casing, and the search found nothing. No error, no failing test, just a flat
+// card indistinguishable from a working one anywhere except a real handset.
+//
+// The button IS the source of truth, so the phrase is read off the button. Relabel it and the
+// highlight follows; there is no second copy to remember.
+//
+// Paired copy-side guard: howsu/spikes/verify_okay_phrase_coupling.py asserts the SHIPPING Reminder 2
+// copy still contains this label, because the backend text lives in another repo and this file cannot
+// force it to match. Together they close the seam; alone, neither does.
+function okayButtonPhrase() {
+  const btn = document.getElementById('btn-okay');
+  if (!btn) return null;
+  // innerHTML, not textContent: the label is markup ("OKAY<br>THANKS"), and textContent would run the
+  // words together as "OKAYTHANKS". Tags become spaces, then whitespace collapses.
+  const phrase = btn.innerHTML.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+                              .replace(/\s+/g, ' ').trim();
+  return phrase || null;
+}
+
+// Tint the OKAY-button phrase wherever it appears in `text`. Matching is case- and whitespace-
+// insensitive, so casing drift ("Okay Thanks") or a line break can no longer break it, and the
+// ORIGINAL casing from the copy is preserved in what renders. Returns text unchanged if the phrase is
+// absent — but says so out loud, because the silence was the actual defect here, more than the
+// duplication.
+function highlightOkayPhrase(text) {
+  const phrase = okayButtonPhrase();
+  if (!phrase) {
+    console.warn('[card] OKAY button not found — Reminder 2 highlight skipped');
+    return text;
+  }
+  const rx = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i');
+  const m = text.match(rx);
+  if (!m) {
+    console.warn(`[card] Reminder 2 copy does not contain the OKAY button label ("${phrase}") `
+                 + '— highlight not applied. The copy and the button have drifted apart.');
+    return text;
+  }
+  return text.replace(rx, `<span style="color:#25C9BA">${m[0]}</span>`);
+}
+
 function buildIonaCard(text, timeStr, isReply, character) {
   const who = character === 'oran' ? 'oran' : 'iona';
   const label = who === 'oran' ? 'Oran' : 'Iona';
@@ -2512,7 +2561,7 @@ function showTodayMessage(body, notifData) {
   hasResponded = false;
   let text = body || notifData?.msg || 'How are you?';
   if (notifData?.type === 'reminder_2') {
-    text = text.replace('OKAY THANKS', '<span style="color:#25C9BA">OKAY THANKS</span>');
+    text = highlightOkayPhrase(text);
   }
   const timeStr = fmtTime();
   const thread = document.getElementById('today-thread');
