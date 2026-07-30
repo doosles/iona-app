@@ -588,10 +588,13 @@ function initPushListeners() {
     const storedAirtableId = await getPreference('fcm_registered_member_id');
     if (newToken !== stored || airtableId !== storedAirtableId) {
       await setPreference('fcm_token', newToken);
-      const sent = await registerTokenWithBackend(newToken, airtableId);
-      // Only a delivered POST advances the record gate. A failed send leaves it stale so the next
-      // launch retries, rather than recording a binding the backend never received.
-      if (sent && airtableId) await setPreference('fcm_registered_member_id', airtableId);
+      const stored = await registerTokenWithBackend(newToken, airtableId);
+      // Only a CONFIRMED PERSIST advances the record gate. Renamed from `sent` on 30 Jul 2026 when
+      // the endpoint became synchronous: the old name was accurate about what it then knew (the POST
+      // went out) and that was exactly the problem — the gate was closing on delivery. A failed or
+      // unconfirmed write leaves the gate open so the next launch retries, rather than recording a
+      // binding the backend never held.
+      if (stored && airtableId) await setPreference('fcm_registered_member_id', airtableId);
     }
   });
 
@@ -764,9 +767,28 @@ async function registerTokenWithBackend(token, airtableId) {
     if (!res.ok) {
       throw new Error('HTTP ' + res.status);
     }
-    // Returned so the caller can hold the record gate open until the POST actually goes out.
-    // NB this reports DELIVERY, not persistence — /register-token acks 200 before it writes to
-    // Airtable, so a write failure still reads as success here. Separate, parked item.
+    // PERSISTENCE, NOT DELIVERY (30 Jul 2026). This used to `return true` on any HTTP-ok, which was
+    // the most it could honestly claim: the endpoint acked 200 before it wrote to Airtable, so a
+    // dropped write still read as success and the record gate advanced on a binding the backend
+    // never held. The endpoint is now synchronous and answers `stored`.
+    //
+    // ABSENT KEY MUST READ FALSE, and that is the deploy-order safety net rather than an oversight:
+    // a new app against an OLD backend sees no `stored`, never advances, and simply re-sends on each
+    // start until the backend ships. `=== true` is deliberate — a truthy-check would let a stray
+    // string or a missing-key `undefined` coerce its way into a false positive.
+    let payload = null;
+    try {
+      payload = await res.json();
+    } catch (parseErr) {
+      console.error('[Push] /register-token returned unparseable JSON:', parseErr);
+      return false;
+    }
+    if (payload?.stored !== true) {
+      console.error('[Push] /register-token did not confirm persistence:', JSON.stringify(payload));
+      setMsg('msg-today-warning', 'Setup incomplete — your device may not receive contacts. Please restart the app.');
+      document.getElementById('msg-today-warning').classList.remove('hidden');
+      return false;
+    }
     return true;
   } catch (err) {
     console.error('[Push] registerTokenWithBackend failed:', err);
