@@ -362,21 +362,11 @@ async function checkSession() {
   // must NEVER resume a device-dial cycle — it's a clean today-screen start.
   if (await getPreference('device_dial_active') === 'true') {
     await removePreference('device_dial_active');
-    await setPreference('escalation_state', 'idle');
+    await _setEscalationState('idle');
   }
-  let savedEscState = await getPreference('escalation_state');
-  if (savedEscState === 'active') {
-    // Stale-screen reconcile (08 Jul): a killed app can miss the escalation-complete FCM and, on next
-    // open, re-surface a FINISHED escalation's "calling your contacts" screen off the local flag. Don't
-    // trust the flag — confirm against the server's single liveness authority before rendering.
-    // _escalationConfirmedLive() already carries the 45-min local fast-path + a tight timeout + bias-to-
-    // not-live on ANY uncertainty (server unreachable → not-live → idle), so a stale flag can never
-    // strand a member on the calling surface, and a genuinely-live escalation still renders it.
-    if (!(await _escalationConfirmedLive())) {
-      await setPreference('escalation_state', 'idle');
-      savedEscState = 'idle';
-    }
-  }
+  // Stale-screen reconcile, now race-safe — see _reconcileEscalationFlag. Both reconcile sites call
+  // the one helper so they cannot drift (08 Jul parity lesson).
+  let savedEscState = await _reconcileEscalationFlag();
   if (savedEscState === 'active') {
     showEscalationActiveState();
   } else if (savedEscState === 'terminal') {
@@ -415,21 +405,11 @@ async function onLoginSuccess(member) {
   // must NEVER resume a device-dial cycle — it's a clean today-screen start.
   if (await getPreference('device_dial_active') === 'true') {
     await removePreference('device_dial_active');
-    await setPreference('escalation_state', 'idle');
+    await _setEscalationState('idle');
   }
-  let savedEscState = await getPreference('escalation_state');
-  if (savedEscState === 'active') {
-    // Stale-screen reconcile (08 Jul): a killed app can miss the escalation-complete FCM and, on next
-    // open, re-surface a FINISHED escalation's "calling your contacts" screen off the local flag. Don't
-    // trust the flag — confirm against the server's single liveness authority before rendering.
-    // _escalationConfirmedLive() already carries the 45-min local fast-path + a tight timeout + bias-to-
-    // not-live on ANY uncertainty (server unreachable → not-live → idle), so a stale flag can never
-    // strand a member on the calling surface, and a genuinely-live escalation still renders it.
-    if (!(await _escalationConfirmedLive())) {
-      await setPreference('escalation_state', 'idle');
-      savedEscState = 'idle';
-    }
-  }
+  // Stale-screen reconcile, now race-safe — see _reconcileEscalationFlag. Both reconcile sites call
+  // the one helper so they cannot drift (08 Jul parity lesson).
+  let savedEscState = await _reconcileEscalationFlag();
   if (savedEscState === 'active') {
     showEscalationActiveState();
   } else if (savedEscState === 'terminal') {
@@ -637,8 +617,8 @@ function initPushListeners() {
         // Proactive escalation entry. Mark the escalation active — mirrors the reactive commitEscalation
         // path — so handleEscalationComplete's `savedState === 'active'` gate passes and the terminal card
         // renders for a PROACTIVE escalation too (fixes the "stuck on Calling your contacts" gap).
-        setPreference('escalation_state', 'active');
-        setPreference('escalation_state_ts', String(Date.now()));
+        setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+        _setEscalationState('active');
         showEscalationActiveState();
         _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
         _activeRunToken = notification.data?.run_token || null;   // Feature 010 — carry the run_token for a later cancel POST
@@ -736,8 +716,8 @@ function initPushListeners() {
         // Proactive escalation entry. Mark the escalation active — mirrors the reactive commitEscalation
         // path — so handleEscalationComplete's `savedState === 'active'` gate passes and the terminal card
         // renders for a PROACTIVE escalation too (fixes the "stuck on Calling your contacts" gap).
-        setPreference('escalation_state', 'active');
-        setPreference('escalation_state_ts', String(Date.now()));
+        setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+        _setEscalationState('active');
         showEscalationActiveState();
         _maxVolumeNow();   // 009 Story 4 — loud from word one for a FOREGROUND proactive escalation (cold-wake = T018/native)
         _activeRunToken = action.notification?.data?.run_token || null;   // Feature 010 — carry the run_token for a later cancel POST
@@ -1367,7 +1347,7 @@ async function _escalationSelfHeal() {
   console.warn('[Escalation] self-heal fired — outcome FCM not received within '
     + (ALARM_ESCALATION_TIMEOUT_MS / 60000) + ' min; re-arming');
   try { logBridgeEvent('escalation_self_heal', { reason: 'outcome_fcm_timeout' }); } catch (e) {}
-  await setPreference('escalation_state', 'idle');
+  await _setEscalationState('idle');
   showAlarmIdleReset();  // clears _alarmFlowActive + returns to resting Today (full re-arm)
 }
 
@@ -1379,7 +1359,7 @@ function showAlarmIdleReset() {
   // render keeps escalation_state='terminal'; it returns to idle ONLY here — the 60s auto-return, the cancel,
   // the self-heal, and Return-to-Iona all route through this. (A retry press heals its own flag in
   // _startHelpSequence.) Clear the persisted terminal outcome too so a later launch never restores a stale card.
-  setPreference('escalation_state', 'idle');
+  _setEscalationState('idle');
   removePreference('escalation_terminal_outcome');
   removePreference('escalation_terminal_name');
   // Law-3 companion (2026-07-19): the run token is now a PREDICATE, not just a payload — the button-path
@@ -1907,8 +1887,8 @@ async function _startIonaEscalation(bridgeFallthrough) {
 
   const { KeepAwake } = Capacitor.Plugins;
   KeepAwake.keepAwake();
-  await setPreference('escalation_state', 'active');
-  await setPreference('escalation_state_ts', String(Date.now()));
+  await setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+  await _setEscalationState('active');
 
   await playAlarmSiren();
   // Amendment 8/9 — the old TTS line here is retired: it announced a cancel window that does not exist on
@@ -1935,39 +1915,176 @@ async function _startIonaEscalation(bridgeFallthrough) {
 // already fired even though our FCM was lost.
 const ESCALATION_LOCAL_STALE_MS = 45 * 60 * 1000;   // 45 min — the single "max plausible live escalation" horizon shared with cold-init, the backend TTL, and the self-heal timer; a flag older than this cannot be live
 const ESCALATION_LIVE_READ_TIMEOUT_MS = 1200;       // tight bound so a stuck-flag press never feels slow to summon
+// 1c.2 — the LOWER bound the horizon above never had. A flag stamped within this window was written by
+// THIS process moments ago, so the reconcile has nothing to reconcile and needs no network call.
+// N = 10s, chosen against both edges: the observed arm→reconcile gap was 1.4–1.6s (≈6× margin), while
+// the earliest an escalation can possibly RESOLVE is the end of the 32s hold (14s lead-in + 10s window
+// + 8s budget) — no contact is dialled before then, so nothing can have resolved inside 10s and this
+// cannot resurrect a finished escalation's screen. Well inside the ≤30s the ruling allows.
+// Deliberately NOT a tuning of ESCALATION_LOCAL_STALE_MS or ESCALATION_LIVE_READ_TIMEOUT_MS — both of
+// those remain exactly as written; this is a separate bound with a separate justification.
+const ESCALATION_FRESH_MS = 10 * 1000;
 
-async function _escalationConfirmedLive() {
+// ── escalation_state WRITE LOGGING (30 Jul 2026) ─────────────────────────────────────────────────
+// `escalation_state` gates the terminal card (handleEscalationComplete's third guard) and had NO write
+// logging whatsoever. That absence is the single reason the 30 Jul missing-card defect cost two live
+// runs plus a fully instrumented rerun to locate: the flag was found at 'idle' with no record of who
+// set it or when, so the writer had to be deduced from a timestamp and a boot signature. One line
+// here makes every future change to this state machine self-diagnosing.
+//
+// The WRITER is taken from the call stack rather than passed at each of the 26 sites: a hand-passed
+// label is a second list that drifts from the code it describes, and the stack cannot lie about which
+// function actually wrote. `why` stays available for the few sites where the trigger is not obvious
+// from the caller name.
+//
+// Returns the setPreference promise, so both `await _setEscalationState(...)` and the bare
+// fire-and-forget form behave exactly as the direct call did. No semantic change.
+function _setEscalationState(value, why) {
+  let writer = 'unknown';
+  try {
+    // [0] "Error", [1] this function, [2] the caller.
+    writer = ((new Error().stack || '').split('\n')[2] || '').trim().replace(/^at\s+/, '') || 'unknown';
+  } catch (e) { /* logging must never break a state write */ }
+  console.log(`[ESC-STATE] -> ${value}  by ${writer}${why ? `  (${why})` : ''}`);
+  return setPreference('escalation_state', value);
+}
+
+// ── THE HEAL RACE, CLOSED BY COMPARE-AND-SET (captain ruling, 30 Jul 2026 — Phase 1b) ────────────
+// Findings: vault `cc_findings_liveness_fix_phase1_partial_2026-07-30`.
+//
+// THE RACE, NAMED PRECISELY. `_startSilenceActivation` writes the flag and its stamp as TWO separate
+// un-awaited calls:
+//     _setEscalationState('active');
+//     setPreference('escalation_state_ts', String(Date.now()));
+// A reconcile running concurrently can therefore observe the NEW state with the OLD stamp. That is
+// exactly what happened at 12:23: it read state='active' (just armed) with a stamp from 79 minutes
+// earlier, so _escalationConfirmedLive()'s 45-minute local fast-path returned "cannot be live"
+// WITHOUT ever contacting the server — and healed the flag 1.6s after the activation armed it. The
+// server-side liveness fix was correct and simply never consulted.
+//
+// WHY BOTH VALUES ARE COMPARED. At decision time state='active'; after the decision state is STILL
+// 'active'. Comparing the state alone would see no change and heal anyway. Only the STAMP moved, so
+// the stamp comparison is the load-bearing half. Recorded because it is not obvious and a later
+// simplification would silently reopen this.
+//
+// Patch-then-verify, the same principle as the runner's `_claim_hold_for_dial`: decide, then confirm
+// nothing moved underneath, and abandon rather than clobber. No new state, no horizon tuning (the
+// captain rejected tuning ESCALATION_LOCAL_STALE_MS — the horizon is not wrong, the ordering is).
+//
+// Returns the state the caller should render from. Shared by BOTH reconcile sites deliberately: they
+// were byte-identical blocks, and the 08 Jul parity lesson is that two fire sites drift unless there
+// is only one of them.
+async function _reconcileEscalationFlag(where) {
+  // Derive the calling site rather than take a hand-passed label. Both call sites are now the same
+  // single line, so a literal label would have to be duplicated and would report the same string from
+  // two different functions — losing exactly the "which site healed?" answer this pass exists to give.
+  if (!where) {
+    try {
+      where = ((new Error().stack || '').split('\n')[2] || '').trim().replace(/^at\s+/, '') || 'unknown';
+    } catch (e) { where = 'unknown'; }
+  }
+  const stateAtDecision = await getPreference('escalation_state');
+  if (stateAtDecision !== 'active') return stateAtDecision;
+  const tsAtDecision = await getPreference('escalation_state_ts');
+
+  // Stale-screen reconcile (08 Jul): a killed app can miss the escalation-complete FCM and, on next
+  // open, re-surface a FINISHED escalation's "calling your contacts" screen off the local flag. Don't
+  // trust the flag — confirm against the server's single liveness authority before rendering.
+  // _escalationConfirmedLive() carries the local fast-path + a tight timeout + bias-to-not-live on ANY
+  // uncertainty, so a stale flag can never strand a member on the calling surface.
+  // trustFresh — 1c.2. THIS is the caller that opts in: a flag this process armed seconds ago needs no
+  // tunnelled round trip to be believed, and run 2 proved the round trip can outlast its own bound.
+  if (await _escalationConfirmedLive({ trustFresh: true })) return 'active';
+
+  // COMPARE-AND-SET. The decision above is awaited and therefore takes real time; anything that armed
+  // the flag while it ran must win, because it knows something this reconcile does not.
+  const stateNow = await getPreference('escalation_state');
+  const tsNow = await getPreference('escalation_state_ts');
+  if (stateNow !== stateAtDecision || tsNow !== tsAtDecision) {
+    console.log(`[ESC-STATE] heal ABANDONED by ${where} — armed while deciding ` +
+                `(state ${stateAtDecision}->${stateNow}, ts ${tsAtDecision}->${tsNow})`);
+    return stateNow;
+  }
+  await _setEscalationState('idle', `${where} reconcile — liveness confirmed dead`);
+  return 'idle';
+}
+
+// `opts.trustFresh` — 1c.2, and DELIBERATELY OPT-IN. See the fast-path-fresh branch for why this is
+// not applied to every caller.
+async function _escalationConfirmedLive(opts) {
+  const trustFresh = !!(opts && opts.trustFresh);
+
   // A live device-dial cycle is genuinely live and known LOCALLY (native; its flag is cleared at
   // completion and on cold-init, and the backend has no view of it) — absorb.
-  if (await getPreference('device_dial_active') === 'true') return true;
+  if (await getPreference('device_dial_active') === 'true') {
+    console.log('[ESC-LIVE] live — device-dial (local authority)');
+    return true;
+  }
 
   // Local fast-path — instant + offline. A flag older than the max plausible ladder cannot be live; heal
   // without any network round-trip (covers the common lost-end-of-ladder-FCM case).
   const tsStr = await getPreference('escalation_state_ts');
   const ts = tsStr ? parseInt(tsStr, 10) : 0;
-  if (!ts || Date.now() - ts > ESCALATION_LOCAL_STALE_MS) return false;
+  const age = ts ? (Date.now() - ts) : null;
+  if (!ts || age > ESCALATION_LOCAL_STALE_MS) {
+    console.log(`[ESC-LIVE] not-live — fast-path-stale (age=${age === null ? 'no-stamp' : age + 'ms'})`);
+    return false;
+  }
+
+  // ── 1c.2 — TOO YOUNG TO BE STALE (captain ruling 30 Jul) ────────────────────────────────────────
+  // The mirror of the horizon above. This reconcile exists to judge a flag left behind by a KILLED
+  // app; a flag stamped seconds ago by THIS process is definitionally not that, and asking a tunnelled
+  // backend about it is both unnecessary and — as run 2 proved — actively harmful: the webhook answered
+  // live=True and the 1200ms bound had already elapsed on a cold launch, so a correct answer arrived
+  // too late and the flag was healed anyway. A fresh flag needs no network at all.
+  //
+  // WHY OPT-IN AND NOT UNCONDITIONAL — the site disagreed with the brief and this is the reason.
+  // This function serves TWO callers whose risk runs in OPPOSITE directions:
+  //   • the reconcile (checkSession / onLoginSuccess) — deciding whether to RENDER the calling screen.
+  //     Trusting a fresh flag is correct: the process just armed it.
+  //   • _startHelpSequence — deciding ABSORB-vs-SUMMON on a real HELP PRESS. Trusting a fresh flag
+  //     here would absorb a member's press for ESCALATION_FRESH_MS whenever a flag had just been armed
+  //     without a live escalation behind it (the "young-stuck" case the dev panel's fd-fakestuck rig
+  //     exists to exercise). That is a SILENCED HELP BUTTON — the one outcome feature 005 was written
+  //     to make impossible, and the worst failure this system has.
+  // So the press path keeps its backend round trip, byte-for-byte unchanged, and only the reconcile
+  // opts in. The ruled intent — take the tunnel off the alarm wake path — is fully delivered.
+  if (trustFresh && age <= ESCALATION_FRESH_MS) {
+    console.log(`[ESC-LIVE] live — fast-path-fresh (age=${age}ms <= ${ESCALATION_FRESH_MS}ms, NO network)`);
+    return true;
+  }
 
   // Recent active flag → ask the backend the one thing we can't know locally: is this escalation still in
   // flight, or did its outcome already fire (even if our FCM was lost)? Tight timeout; ANY uncertainty
   // (non-200, offline, abort, parse error, missing id) → not-live → summon.
   const rec = await getPreference('member_airtable_id');
-  if (!rec) return false;
+  if (!rec) {
+    console.log('[ESC-LIVE] not-live — no-rec');
+    return false;
+  }
   try {
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), ESCALATION_LIVE_READ_TIMEOUT_MS);
     let live = false;
+    let httpStatus = 'none';
     try {
       const res = await fetch(`${STATUS_BASE}/pwa-escalation-live?rec=${encodeURIComponent(rec)}`, {
         method: 'GET',
         headers: { 'ngrok-skip-browser-warning': 'true' },
         signal: ctrl.signal,
       });
+      httpStatus = res.status;
       if (res.ok) { const data = await res.json(); live = data.live === true; }
     } finally {
       clearTimeout(to);
     }
+    console.log(`[ESC-LIVE] ${live ? 'live — server-live' : 'not-live — server-not-live'} (http=${httpStatus}, age=${age}ms)`);
     return live;   // absorb ONLY on a positive live
   } catch (e) {
+    // THE RUN-2 MECHANISM. Kept exactly as designed for the press path; the reconcile no longer
+    // reaches here for a fresh flag, which is the whole point of 1c.2.
+    console.log(`[ESC-LIVE] not-live — timeout-or-error (${(e && e.name) || 'error'}, ` +
+                `bound=${ESCALATION_LIVE_READ_TIMEOUT_MS}ms, age=${age}ms)`);
     return false;  // timeout / offline / error → summon
   }
 }
@@ -2079,7 +2196,7 @@ async function _startHelpSequence(triggerSource) {
     // anything short of a positive "yes, live" (stale, not-live, timeout, offline, terminal) summons.
     const currentEscState = await getPreference('escalation_state');
     if (currentEscState === 'active' && await _escalationConfirmedLive()) return;  // genuinely live — absorb
-    if (currentEscState !== 'idle') await setPreference('escalation_state', 'idle');  // heal a stale/terminal flag
+    if (currentEscState !== 'idle') await _setEscalationState('idle');  // heal a stale/terminal flag
     _summonCountdownActive = true;
   } finally {
     _summonEvaluating = false;
@@ -2223,8 +2340,8 @@ async function _startHelpSequence(triggerSource) {
       }
       const { KeepAwake } = Capacitor.Plugins;
       KeepAwake.keepAwake();
-      await setPreference('escalation_state', 'active');
-      await setPreference('escalation_state_ts', String(Date.now()));
+      await setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+      await _setEscalationState('active');
       // Amendment 8 — the second TTS line here is retired: it repeated the cancel instruction AFTER the
       // window had closed and the cancel button was hidden (false), always said "10" regardless of the
       // member's setting, and never played anyway. Oran speaks ONCE at activation; the Signal audio
@@ -2402,8 +2519,8 @@ async function _startSilenceActivation(data, opts) {
   }
   if (seconds <= 0) {
     _silenceRunToken = (data && data.run_token) || null;
-    setPreference('escalation_state', 'active');
-    setPreference('escalation_state_ts', String(Date.now()));
+    setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+    _setEscalationState('active');
     showEscalationActiveState();
     return;
   }
@@ -2413,8 +2530,8 @@ async function _startSilenceActivation(data, opts) {
   // Mirrors the pre-010 handler: the activation is in progress and WILL dial unless cancelled, so the
   // state that gates handleEscalationComplete's terminal render is armed here, exactly as before. The
   // cancel path returns it to idle via showAlarmIdleReset.
-  setPreference('escalation_state', 'active');
-  setPreference('escalation_state_ts', String(Date.now()));
+  setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+  _setEscalationState('active');
   _activeRunToken = (data && data.run_token) || null;   // the cancel POST is instance-scoped on this
   _silenceRunToken = _activeRunToken;                   // Amendment 11 — mark THIS run as silence-triggered,
                                                         // so the flip selects Oran's line over Iona's
@@ -2621,7 +2738,17 @@ async function handleEscalationComplete(data) {
   // Signal ack card over the conversation the member had. joinPhase is null for Signal + hands-free exhaustion.
   if (_saState.joinPhase) { console.log('[009] escalation_complete card suppressed — join-phase owns the terminal'); return; }
   const savedState = await getPreference('escalation_state');
-  if (savedState !== 'active') return; // belt (subordinate to the verdict above): user already dismissed
+  if (savedState !== 'active') {
+    // GATE 3 NOW SPEAKS (30 Jul 2026 — findings item 3). This return suppressed the member's terminal
+    // card SILENTLY, and it is the gate that actually fired on 30 Jul: the audio played (its authority
+    // is the run_token, which matched) while the card was dropped here because a cold-launch reconcile
+    // had healed the flag to 'idle' mid-escalation. Two live runs produced no line naming this branch.
+    // The card is still not drawn — the guard is correct, a dismissed alarm must not be re-carded — but
+    // the suppression is no longer invisible.
+    console.log(`[009] escalation_complete CARD suppressed — escalation_state='${savedState}' (need 'active'); ` +
+                `outcome=${(data && data.outcome) || '-'} run=${String((data && data.run_token) || '-').slice(0, 8)}`);
+    return;
+  }
   // Feature 010 — member-cancelled: neither terminal card is true (nobody was reached, nobody was exhausted).
   // The member acted deliberately and the local cancel path already returned them to rest, so close quietly:
   // restore volume, release the wake-lock, clear state. No card.
@@ -2629,11 +2756,11 @@ async function handleEscalationComplete(data) {
     _restoreVolumeNow();
     try { Capacitor.Plugins.KeepAwake.allowSleep(); } catch (e) {}
     _hideStopControl();
-    await setPreference('escalation_state', 'idle');
+    await _setEscalationState('idle');
     return;
   }
   _restoreVolumeNow();   // 009 Story 4 (R-009-5/T019) — a genuine escalation terminal (ack OR exhausted) → restore prior volume
-  await setPreference('escalation_state', 'terminal');
+  await _setEscalationState('terminal');
   // Persist the outcome + name alongside 'terminal' so a reopen WHILE THE TERMINAL STILL HOLDS restores the
   // RIGHT card — acknowledged (success/reached) vs exhausted (captain fix 2026-07-12; the restore paths in
   // preLoginBoot/onLoginSuccess read these). Cleared on dismissal by showAlarmIdleReset.
@@ -2733,7 +2860,7 @@ function initTodayActions() {
     const { ZeroCall } = Capacitor.Plugins;
     if (ZeroCall) ZeroCall.stopDialCycle({}).catch(() => {});
     await removePreference('device_dial_active');
-    await setPreference('escalation_state', 'idle');
+    await _setEscalationState('idle');
     const { KeepAwake } = Capacitor.Plugins;
     KeepAwake.allowSleep();
     showAlarmIdleReset();
@@ -2757,7 +2884,7 @@ function initTodayActions() {
     document.getElementById('today-thread').innerHTML = '';
     document.getElementById('today-thread').classList.add('hidden');
     document.getElementById('today-empty').classList.remove('hidden');
-    await setPreference('escalation_state', 'idle');
+    await _setEscalationState('idle');
     const { KeepAwake } = Capacitor.Plugins;
     KeepAwake.allowSleep();
     showOrb();
@@ -3885,7 +4012,7 @@ async function _bridgeDroppedTerminal() {
   // SAME "📞 Call {name}" device-dial action as N4 (a willing human was just on the line — R-009-4). Captured
   // BEFORE _clearBridgeAttempt nulls it (join-confirmed push, R-009-22 connectedContactPhone).
   const _dropPhone = (bridgeAttempt?.connectedContactPhone || '').trim();
-  setPreference('escalation_state', 'idle');
+  _setEscalationState('idle');
   _cleanupBridgeTimers();
   await _saDropped(_dropName);   // R-009-31 #13 — teardown the live-call audio route + restore media/volume, THEN speak the N5 clip (awaited so the settle+card follow the clip, not the drop)
   _clearBridgeAttempt();
@@ -3897,7 +4024,7 @@ async function _bridgeDroppedTerminal() {
 // a re-press summons cleanly, then render the 008 dropped-card SHELL with the N4 copy-variant (the spoken N4
 // line fires from _saJoinFailed in the push handler). Mirrors _bridgeDroppedTerminal's capture-before-clear.
 async function _showFailedJoinTerminal(contactFirst, contactPhone) {
-  setPreference('escalation_state', 'idle');
+  _setEscalationState('idle');
   _cleanupBridgeTimers();
   _clearBridgeAttempt();
   await _saSettleBeforeCard();   // R-009-29 Directive A — uniform 2000ms settle before the N4 card (the _saJoinFailed clip plays during the hold)
@@ -4013,7 +4140,7 @@ function _initBridgeListeners() {
     // leg dropped). Show the exhausted card (retry via I NEED HELP) — never claim success, never reconnect
     // into a dead reaching conference.
     if (!bridgeAttempt.everConnected) {
-      setPreference('escalation_state', 'idle');
+      _setEscalationState('idle');
       _cleanupBridgeTimers();
       _clearBridgeAttempt();
       showBridgeCard('terminal_exhausted');
@@ -5016,8 +5143,8 @@ async function startDeviceDial(triggerSource, isFloor) {
   };
 
   if (KeepAwake) KeepAwake.keepAwake();
-  await setPreference('escalation_state', 'active');
-  await setPreference('escalation_state_ts', String(Date.now()));
+  await setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+  await _setEscalationState('active');
   // Marker so a launch knows this 'active' state is a device-dial cycle — which NEVER survives a
   // process restart (it's native and dies with the process). The launch handler clears it and
   // starts clean, so a fresh launch never restores into a dead device-dial calling screen.
@@ -5127,7 +5254,7 @@ async function _deviceDialTerminal(reason) {
   if (KeepAwake) KeepAwake.allowSleep();
   // Honest terminal — device dial never claims a contact "connected" (it can't verify an answer).
   // A retry press is allowed, same ethos as the bridge's exhaustion.
-  await setPreference('escalation_state', 'idle');
+  await _setEscalationState('idle');
   await removePreference('device_dial_active');
   hideOrb();
   document.getElementById('alarm-escalation-card').classList.add('hidden');
@@ -5345,8 +5472,8 @@ async function _consumeEscalationAlarm() {
     }
     // Member-initiated alert, a pre-010 push with no marker, or a window already spent → today's landing:
     // the sweep is (or is about to be) running, and Oran's Promise with its Phase-2 control is the truth.
-    setPreference('escalation_state', 'active');
-    setPreference('escalation_state_ts', String(Date.now()));
+    setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+    _setEscalationState('active');
     showEscalationActiveState();
   } catch (e) {}
 }
@@ -6944,7 +7071,7 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
   if (await getPreference('escalation_state') !== 'active') return;
   if (await _escalationConfirmedResolved()) {
-    await setPreference('escalation_state', 'idle');
+    await _setEscalationState('idle');
     showAlarmIdleReset();
   }
 });
@@ -7065,13 +7192,13 @@ function _initFlicDevPanel() {
   // on relaunch (cold-init). Requires a paired button only for a real physical press; Sim press does not.
   document.getElementById('fd-fakestuck').onclick = async () => {
     await removePreference('device_dial_active');
-    await setPreference('escalation_state', 'active');
+    await _setEscalationState('active');
     await setPreference('escalation_state_ts', String(Date.now()));   // RECENT ts → forces the backend liveness read (the young-stuck path that needs the backend)
     showEscalationActiveState();
     log('FAKE young-stuck: active + ts=now, NO backend escalation. Physical press (or Sim press) → should SUMMON (cancel window). B1.');
   };
   document.getElementById('fd-fakelive').onclick = async () => {
-    await setPreference('escalation_state', 'active');
+    await _setEscalationState('active');
     await setPreference('escalation_state_ts', String(Date.now()));
     await setPreference('device_dial_active', 'true');   // local "genuinely live" signal → confirmed live → should ABSORB
     showEscalationActiveState();
