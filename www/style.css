@@ -1521,7 +1521,19 @@ body.light .btn-okay.btn--dim {
 .oran-av--live { background: rgba(37,201,186,0.16); color: var(--teal-glow); }  /* R006 — live avatar initial TEAL per the signed mockup (was amber) */
 .oran-who { flex: 1; min-width: 0; }
 .oran-nm { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
-.oran-pos { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.oran-pos { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+/* ── The sweep counter (captain-approved 30 Jul 2026) ────────────────────────────────────────────
+   COLOUR ONLY. The card layout is untouchable, so these rules deliberately declare NO box property —
+   no width, height, margin, padding, border, font-size, display or position. `tabular-nums` above is
+   the one addition to the base rule and is a glyph-selection hint within the existing font: it stops
+   "1 of 2" and "2 of 2" from jittering as the digits change, which is the opposite of drift.
+   Teal, not amber: amber is already carrying the promise header and the resolved outcomes. */
+.oran-pos--live { color: var(--teal-glow); }
+/* Leaving teal. This is an ANIMATION rather than a transition because setContactStatus rebuilds the
+   row's innerHTML — the teal element is destroyed, so its replacement is born grey and a transition
+   would have nothing to interpolate from. Applied for one paint to the row handing the teal over. */
+.oran-pos--settling { animation: oranPosSettle 520ms ease-out 1; }
+@keyframes oranPosSettle { from { color: var(--teal-glow); } to { color: var(--text-muted); } }
 .oran-status { font-size: 12px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
 .oran-status--live { color: var(--teal-glow); }     /* active label (Ringing / Sending a text) */
 .oran-status--amber { color: var(--amber-300); }    /* resolved Oran outcome */
@@ -1542,6 +1554,9 @@ body.light .btn-okay.btn--dim {
   /* both scoped orbs — a bare .oran-orb would now lose the specificity contest to the scoped rules */
   .oran-status .oran-orb, .login-orb-wrap .oran-orb,
   .alarm-escalation-card--oran .alarm-esc-sub::before { animation: none; }
+  /* The counter's teal→grey fade is colour-only, but it is still an animation — honour the setting.
+     Without it the element simply renders grey immediately, which is the same end state. */
+  .oran-pos--settling { animation: none; }
   /* Settings orb — core breathe and both ping rings stop; the gradient + teal glow still read. */
   .orb-card-visual,
   .orb-card-visual::before,

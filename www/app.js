@@ -929,11 +929,31 @@ function _callingRowHTMLOran(c, i, total, state) {
   const initial = (firstName.charAt(0) || 'C').toUpperCase();
   const orb = (state === 'active') ? '<span class="oran-orb"></span>' : '';   // pulse only on a live CALL (no ring on SMS)
   const tick = (state === 'reached') ? '<span class="oran-tick">✓</span> ' : '';
+  // ── THE SWEEP COUNTER (captain-approved 30 Jul 2026) ───────────────────────────────────────────
+  // WHAT CHANGED, AND ONLY THIS: the same `.oran-pos` element stops counting CONTACTS and starts
+  // counting SWEEPS — which pass of the ladder this contact is on — and glows teal while Oran is
+  // actually working that contact. Two things, nothing else.
+  //
+  // THE LAYOUT IS UNTOUCHABLE (captain's gate). Nothing here changes structure: same element, same
+  // parent, same siblings, one text swap and one colour class. `.oran-pos` sits inside `.oran-who`,
+  // which is `flex: 1`, so its own width cannot move anything; the class adds `color` and a
+  // transition and no box property. No nudge was needed, so no stop-and-ask was owed.
+  //
+  // A contact NOT YET REACHED on this run shows an em-dash, not "1 of 2". Printing a pass that has
+  // not happened would be the same overclaim the row statuses are careful to avoid.
+  const sweepText = _escRowSweepLabel(i);
+  // "Phases back to grey" needs one extra beat of care: setContactStatus rebuilds the row's innerHTML,
+  // so the teal element is DESTROYED rather than restyled — a CSS transition on it can never run,
+  // because the replacement element is born grey. The fade is therefore a one-shot animation applied
+  // to the row that is leaving live on this paint, and only that row: a plain transition would have
+  // looked correct in a mockup and done nothing on the device.
+  const posLive = (isLive && sweepText !== '—') ? ' oran-pos--live' : '';
+  const posSettling = (!isLive && i === _escPosSettlingRow && sweepText !== '—') ? ' oran-pos--settling' : '';
   return `
       <div class="oran-av${state === 'active' ? ' oran-av--live' : ''}">${initial}</div>
       <div class="oran-who">
         <div class="oran-nm">${firstName}</div>
-        <div class="oran-pos">${i + 1} of ${total}</div>
+        <div class="oran-pos${posLive}${posSettling}">${sweepText}</div>
       </div>
       <div class="oran-status oran-status--${tone}">${orb}${tick}${text}</div>`;
 }
@@ -1032,8 +1052,25 @@ let _escSlotToRow = {};     // raw econtact_index -> dense screen row
 let _escLastRow = -1;       // last row shown active — the contact an 'acknowledged' terminal resolves to 'Reached'
 let _escRowGate = {};       // R009 run-2 R2: row -> {seq, rank} ordering guard (see escalationScreenAdvance)
 let _escScreenSettled = false;   // #5 ruling: the run's complete SETTLES the mirror — no later paint may touch it
+// ── Sweep counter state (30 Jul 2026). Per DENSE ROW, never per raw slot: econtact slots have gaps,
+// so keying on contact_index would print "6 of 2" for a contact sitting in slot 6. _escScreenRow()
+// already owns that mapping for the chips and this reuses it rather than repeating it.
+let _escRowSweep = {};       // dense row -> the sweep number that row is CURRENTLY on
+let _escSweepTotal = null;   // the engine's RESOLVED sweep count, from the advance payload
+let _escPosLiveRow = -1;     // the row whose counter is currently teal
+let _escPosSettlingRow = -1; // the row leaving teal on THIS paint — see the note in the CSS
+
+function _escRowSweepLabel(row) {
+  // An em-dash until BOTH halves are known. The denominator arrives on the first advance push, so a
+  // row that has not been reached yet — and every row before the first push lands — is honest rather
+  // than guessed. This is also the safe state against an OLD backend that sends no `sweep_count`:
+  // the key is absent, the total stays null, and the counter simply never claims anything.
+  const s = _escRowSweep[row];
+  if (!s || !_escSweepTotal) return '—';
+  return `${s} of ${_escSweepTotal}`;
+}
 const _ESC_OUTCOME_STATE = { voicemail: 'voicemail', sms_sent: 'text_sent', declined: 'declined', no_answer: 'noanswer' };
-function escalationScreenReset(runToken) { _escScreenRun = runToken || null; _escSlotToRow = {}; _escLastRow = -1; _escRowGate = {}; _escScreenSettled = false; }
+function escalationScreenReset(runToken) { _escScreenRun = runToken || null; _escSlotToRow = {}; _escLastRow = -1; _escRowGate = {}; _escScreenSettled = false; _escRowSweep = {}; _escSweepTotal = null; _escPosLiveRow = -1; _escPosSettlingRow = -1; }
 function _escScreenRow(rawIndex) {
   if (rawIndex == null || rawIndex < 0) return -1;
   if (!(rawIndex in _escSlotToRow)) _escSlotToRow[rawIndex] = Object.keys(_escSlotToRow).length;
@@ -1065,6 +1102,21 @@ function escalationScreenAdvance(data) {
       const g = _escRowGate[row];
       if (g && (seq < g.seq || (seq === g.seq && rank < g.rank))) return;   // stale / reordered — never downgrade
       _escRowGate[row] = { seq, rank };
+    }
+    // Sweep counter — recorded BEFORE the paint below, so the re-render reads the current value.
+    // Placed after the ordering guard deliberately: a stale/reordered signal must not drag a row's
+    // counter backwards any more than it may downgrade its chip.
+    const _sc = parseInt(data.sweep_count ?? '-1', 10);
+    if (_sc > 0) _escSweepTotal = _sc;
+    const _sw = parseInt(data.sweep ?? '-1', 10);
+    if (_sw > 0) _escRowSweep[row] = _sw;
+    // Hand the teal over: this row is leaving live iff it currently holds it and is now resolving.
+    const _leavingLive = (data.phase === 'ended' && _escPosLiveRow === row);
+    _escPosSettlingRow = _leavingLive ? row : -1;
+    if (data.phase === 'ended') {
+      if (_escPosLiveRow === row) _escPosLiveRow = -1;
+    } else {
+      _escPosLiveRow = row;
     }
     if (data.phase === 'ended') {
       // resolved — the per-contact outcome (unknown/None → neutral "Called", never a WRONG claim, FR-010)
