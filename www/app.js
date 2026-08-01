@@ -1709,8 +1709,8 @@ function _renderReactiveMethodPicker() {
 /* ── Rounds (sweep-count) selector — Service settings. Memberstack-only ('sweep-count'); NEVER Airtable.
    Visible on ALL plans (no gating). Write-on-select via _cmWrite (optimistic + revert-on-failure), mirroring
    the app's other immediate-write settings. Copy + structure shared verbatim with the website dashboard +
-   onboarding. Strict clamp (non-1/2/3 → 2, per brief) — deliberately NOT the engine's _clampSweepCount()
-   which nearest-clamps (9→3); the UI never renders an out-of-range state. ── */
+   onboarding. Strict clamp (non-1/2/3 → 2, per brief) — deliberately NOT a nearest-clamp (which would
+   turn 9 into 3); the UI never renders an out-of-range state. ── */
 const _RND_ROWS = {
   1: ["We call each of your contacts once, in order."],
   2: ["Round 1 — we call each contact in turn.", "Round 2 (moments later) — we try everyone again."],
@@ -3424,13 +3424,13 @@ function initSettings() {
 const BRIDGE_RING_TIMEOUT_MS = 30000;
 // PHASE 2 — the between-sweep gap is now server-owned (SWEEP_GAP_SECONDS in reply_to_airtable_webhook).
 // The app no longer schedules re-sweeps, so no client-side gap constant exists here.
-const BRIDGE_DEFAULT_SWEEP_COUNT = 2;
-// Clamp a member's sweep count to [1,3], default 2 — SAME floor/ceiling/default as the direct-alert
-// engine's _resolve_sweep_count, so the two reactive methods can never diverge on the value.
-function _clampSweepCount(v) {
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? Math.max(1, Math.min(3, n)) : BRIDGE_DEFAULT_SWEEP_COUNT;
-}
+// REMOVED 01 Aug 2026 — `_clampSweepCount` and `BRIDGE_DEFAULT_SWEEP_COUNT`.
+// Orphaned by feature 009 Phase 6, which moved sweep resolution server-side; nothing had called the
+// function since. Its comment claimed parity with the engine's `_resolve_sweep_count` ("SAME
+// floor/ceiling/default"), and that claim went stale on 17 Jul when the engine gained a mode-aware
+// floor (hands-free/bridge 2, Oran's Signal 1) while this clamped a flat [1,3]. Dead code asserting
+// a parity that no longer held — the worst of both, so it is deleted rather than corrected.
+// The live authority is `_resolve_sweep_count` in the backend. Grep-proven zero callers before removal.
 // Connect-anchored call timers (replace the old summon-anchored absolute ceiling). Armed when the
 // contact actually JOINS the conference (2 participants), NOT at summon — so they can never cut off a
 // call relative to summon. Single tunable pair (ms).
