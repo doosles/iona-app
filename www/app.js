@@ -2592,6 +2592,19 @@ async function _startSilenceActivation(data, opts) {
                 `(run_ts ${_runTs}); showing it anyway per the no-floor ruling`);
   }
   if (seconds <= 0) {
+    // THE SKIP, NOW AUDIBLE IN THE LOG (02 Aug 2026 — measurement before remedy).
+    // This branch is the one that shows the member Oran's Promise with NO cancel countdown, and until
+    // now it logged NOTHING — so a window skipped because the push arrived late was, in logcat,
+    // indistinguishable from a push that never arrived at all. Two device sessions were spent unable
+    // to tell those apart. The numbers below are exactly what settles it by subtraction: how late the
+    // push was against the budget the engine actually held.
+    // NOT a behaviour change — the skip itself is correct and deliberate (offering a cancel the engine
+    // will not honour would be the worse fault). This only makes it say so.
+    const _lateBy = _deadlineAt ? Math.round((Date.now() - _deadlineAt) / 1000) : null;
+    console.log('[ALARM] cancel window SKIPPED — push landed after the engine deadline. ' +
+                `remaining=${seconds}s run_ts=${_runTs} lead_in=${_lead}s window=${_win}s budget=${_budget}s ` +
+                `hold=${_lead + _win + _budget}s deadline=${_deadlineAt || '(none)'} now=${Date.now()}` +
+                (_lateBy !== null ? ` LATE_BY=${_lateBy}s` : ' (no run_ts — deadline unknown)'));
     _silenceRunToken = (data && data.run_token) || null;
     setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
     _setEscalationState('active');
