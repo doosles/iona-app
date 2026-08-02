@@ -3118,13 +3118,33 @@ function _applyFeedbackMode(mode) {
   });
 }
 
-// US2 — settings sheet tab switcher (Service / Appearance / Account). Queries the DOM on each
-// call so both open paths (settings nav + paused banner) can reset to the default Service tab.
+/* Bottom-nav lit state (02 Aug relocation) — DERIVED, never assigned.
+   The lit tab is a pure function of two facts: is the sheet open, and which pane is active. It has
+   to be derived, because ELEVEN sites toggle #settings-overlay's hidden class — the ✕, the
+   slide-down swipe, Android back, the alarm surface takeover, the paused banner, the pairing flow,
+   and every mirror screen leaving and returning. Writing the lit state at each of those would be
+   eleven chances to drift, and would mean editing the swipe handler and the deep-link exits, which
+   the 02 Aug ruling puts out of bounds. So one observer watches the class instead (see initSettings).
+   The pane title reads the nav button's OWN label, so the word on the tab and the word in the sheet
+   header cannot disagree — the same one-source-of-truth habit as the OKAY button's phrase. */
+function _syncNavLit() {
+  const ov = document.getElementById('settings-overlay');
+  const open = !!ov && !ov.classList.contains('hidden');
+  const pane = document.querySelector('#settings-overlay .settings-pane.is-active')?.dataset.pane || '';
+  document.querySelectorAll('.today-nav .nav-tab').forEach((t) => {
+    t.classList.toggle('nav-tab--active', open && t.dataset.tab === pane);
+  });
+  const title = document.getElementById('settings-title');
+  const label = document.querySelector('.today-nav .nav-tab[data-tab="' + pane + '"] span');
+  if (title && label) title.textContent = label.textContent;
+}
+
+// US2 — settings pane switcher (Service / Appearance / Account). Queries the DOM on each
+// call so both open paths (bottom nav + paused banner) can reset to the default Service pane.
 function _activateSettingsTab(name) {
-  document.querySelectorAll('#settings-overlay .settings-tab')
-    .forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
   document.querySelectorAll('#settings-overlay .settings-pane')
     .forEach((p) => p.classList.toggle('is-active', p.dataset.pane === name));
+  _syncNavLit();  // the pane changed; the lit tab and the header title follow it (02 Aug relocation)
   // Ruling 4 — and never carry an ARMED help button behind an opened settings sheet either. Same
   // lesson, same line: a confirm state must not outlive the screen the member was looking at.
   if (typeof _disarmHelpButton === 'function') _disarmHelpButton();
@@ -3159,24 +3179,42 @@ function initSettings() {
   // v2 — Settings: message font toggle ('Iona style' Dancing Script teal vs plain Newsreader white). Saves to Preferences.
   const overlay = document.getElementById('settings-overlay');
 
-  document.getElementById('nav-settings').addEventListener('click', () => {
-    overlay.classList.remove('hidden');
-    _activateSettingsTab('service');  // US2 — always open on the Service tab
-    readAndApplyServiceState();  // US1 — settings status pill reads true state on open
+  /* Bottom nav (02 Aug relocation) — each tab opens the EXISTING sheet already on its pane; the lit
+     tab closes it. The old #nav-today (which never had a handler) and #nav-settings retire here. */
+  document.querySelectorAll('.today-nav .nav-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const pane = tab.dataset.tab;
+      const wasOpen = !overlay.classList.contains('hidden');
+      const active = document.querySelector('#settings-overlay .settings-pane.is-active')?.dataset.pane;
+      // Tapping the LIT tab closes the sheet — through the same _closeSettings the ✕ and Android
+      // back run. Deliberately not a second close path: that routine also stops the Account tab's
+      // live clock and re-reads service state, and a copy would drift from it.
+      if (wasOpen && active === pane) { _closeSettings(); return; }
+      overlay.classList.remove('hidden');
+      _activateSettingsTab(pane);
+      // US1 — the status line reads true state on OPEN only. Switching panes with the sheet already
+      // up never re-read before this change and still doesn't.
+      if (!wasOpen) readAndApplyServiceState();
+    });
   });
 
-  // US2 — tab switcher (Service / Appearance / Account)
-  overlay.querySelectorAll('.settings-tab').forEach((tab) => {
-    tab.addEventListener('click', () => _activateSettingsTab(tab.dataset.tab));
-  });
+  /* One observer, one authority for the lit state. It catches every route that hides or shows the
+     sheet — including the two the ruling forbids editing (the slide-down swipe below, and the
+     mirror screens' chevron-back returns), which is precisely why it is an observer and not a call
+     bolted onto each of them. */
+  new MutationObserver(_syncNavLit).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+  _syncNavLit();  // start honest: sheet closed at launch, so nothing is lit
 
   _bindRoundsSelector();  // rounds (sweep-count) — bind the segmented control once (its DOM is static)
 
   // Hidden dev toggle (T021 deferred): 7 rapid taps on the Service tab flips dev_mode and reloads, so the
   // FLIC DEV panel is available for field troubleshooting but is OFF by default — a member switching tabs
   // taps once, never seven times, and never sees it. (Standard "tap build-number 7×" pattern.)
+  // 02 Aug: the gesture follows its control. The Service tab now lives in the bottom nav, so the
+  // seven taps are counted there — same tab, same count, same window. (The sheet flickers open/shut
+  // under a rapid seven, then reloads, which is what it always did to the pane.)
   (() => {
-    const svc = overlay.querySelector('.settings-tab[data-tab="service"]');
+    const svc = document.querySelector('.today-nav .nav-tab[data-tab="service"]');
     if (!svc) return;
     let taps = 0, last = 0;
     svc.addEventListener('click', async () => {

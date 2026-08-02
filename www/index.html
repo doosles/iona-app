@@ -170,14 +170,22 @@
       </div>
     </div>
 
+    <!-- Bottom nav — the three settings panes, relocated here from the sheet's header (02 Aug).
+         NO Today tab: Today is simply where you are when the sheet is closed, so nothing is lit
+         here at rest. `data-tab` matches the sheet's `data-pane` values; the lit class is written
+         only by _syncNavLit(), never inline — see app.js. -->
     <nav class="today-nav">
-      <button class="nav-tab nav-tab--active" id="nav-today">
-        <i class="ti ti-sun"></i>
-        <span>Today</span>
+      <button class="nav-tab" id="nav-service" data-tab="service">
+        <i class="ti ti-heart-handshake"></i>
+        <span>Service</span>
       </button>
-      <button class="nav-tab" id="nav-settings">
-        <i class="ti ti-settings"></i>
-        <span>Settings</span>
+      <button class="nav-tab" id="nav-appearance" data-tab="appearance">
+        <i class="ti ti-palette"></i>
+        <span>Appearance</span>
+      </button>
+      <button class="nav-tab" id="nav-account" data-tab="account">
+        <i class="ti ti-user-circle"></i>
+        <span>Account</span>
       </button>
     </nav>
 
@@ -187,16 +195,19 @@
   <div id="settings-overlay" class="settings-overlay hidden">
     <div class="settings-panel">
       <div class="settings-grabber" aria-hidden="true"></div>
-      <button id="btn-settings-close" class="settings-close">✕</button>
 
-      <!-- US2 — tab bar (Service · Appearance · Account); Service active by default -->
-      <div class="settings-tabs" role="tablist">
-        <button class="settings-tab is-active" data-tab="service" role="tab">Service</button>
-        <button class="settings-tab" data-tab="appearance" role="tab">Appearance</button>
-        <button class="settings-tab" data-tab="account" role="tab">Account</button>
+      <!-- The US2 tab bar moved to the Today screen's bottom nav (02 Aug). Its place is taken by the
+           open pane's name — written by _syncNavLit() from the nav button's own label, so the two
+           can never drift apart.
+           Title and ✕ share ONE row (captain, 02 Aug: space is at a premium). The title is centred
+           on the SHEET, not on the space left beside the ✕ — so the ✕ comes out of flow rather than
+           sitting as a flex sibling that would shove the title off-centre by its own width. -->
+      <div class="settings-header">
+        <h2 class="settings-title" id="settings-title">Service</h2>
+        <button id="btn-settings-close" class="settings-close">✕</button>
       </div>
 
-      <!-- Scrollable body — panes scroll under the pinned header (grabber + × + title + tabs). -->
+      <!-- Scrollable body — panes scroll under the pinned header (grabber + × + title). -->
       <div class="settings-body">
 
       <!-- Service pane -->

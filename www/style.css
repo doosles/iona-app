@@ -660,6 +660,21 @@ body.light .btn-okay.btn--dim {
   font-size: 20px;
 }
 
+/* Three tabs instead of two (02 Aug relocation): "Appearance" is the long one, and it does NOT fit
+   on the arithmetic alone. Measured on the 6a, not assumed: a 320px viewport gives each tab a
+   106.7px slot, and at Larger the label renders 87px — because US6's ×1.44 is multiplied AGAIN by
+   the phone's own system font scale (×1.15 on that handset, and the member can go higher). The old
+   two-tab row had slack to hide that; three tabs do not. So the horizontal padding drops to 2px,
+   buying the label 102.7px of the slot, and the ellipsis below stays as the backstop for whatever
+   system scale a member chooses — a clipped word is graceful, a broken row is not. */
+.nav-tab { min-width: 0; padding: 10px 2px; }
+.nav-tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nav-tab--active {
   color: var(--teal);
 }
@@ -691,11 +706,11 @@ body.light .btn-okay.btn--dim {
   overflow: hidden;
 }
 
-/* Pinned header (grabber + × + tab bar) — never compressed by the scroll body, always
+/* Pinned header (grabber + the title/× row) — never compressed by the scroll body, always
    reachable regardless of pane height or text size. */
 .settings-grabber,
 .settings-close,
-.settings-tabs { flex-shrink: 0; }
+.settings-header { flex-shrink: 0; }
 
 /* Scrollable body — the panes live here; content past the viewport scrolls under the pinned
    header. General robustness for any long content at any text size (not a US6-only patch). */
@@ -802,32 +817,42 @@ body.light .btn-okay.btn--dim {
   margin-bottom: 8px;
 }
 
-/* US2 — settings tab bar (Service · Appearance · Account) */
-.settings-tabs {
-  display: flex;
-  gap: 0;
-  background: var(--surface-2);
-  border-radius: 100px;
-  padding: 4px;
-  margin-bottom: 16px;
-}
-.settings-tab {
-  flex: 1;
-  height: 40px;
-  background: transparent;
-  border: none;
-  border-radius: 100px;
-  padding: 0 4px;
+/* The US2 tab bar's replacement (02 Aug relocation): the open pane's name. Its three rules went
+   with the row itself — dead copy is not kept behind a moved control (the US6 precedent, which
+   deleted .settings-title and --fs-title outright when the old sheet title was removed).
+   FIXED px, deliberately NOT calc(… * var(--text-scale)) — chrome naming a surface, the same
+   register as the 14px tab labels it replaces (larger, because it is a heading rather than one of
+   three competing for a row) and, like them, it must not move with US6 text-size. */
+.settings-title {
+  margin: 0;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  font-size: 14px;  /* FIXED chrome — navigation, not reading content; never scales with US6 text-size */
+  font-size: 17px;
   font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
+  color: var(--text);
+  text-align: center;
 }
-.settings-tab.is-active {
-  background: var(--surface);
-  color: var(--teal);
-  box-shadow: 0 1px 4px rgba(19,32,32,.18);
+
+/* One row for the title and the ✕ (captain, 02 Aug: space is at a premium) — it reclaims the whole
+   height the ✕ used to occupy on its own. The row is the positioning context and the ✕ is absolute
+   inside it, so the title centres on the SHEET rather than on the gap beside the button.
+   The ✕ is scoped HERE, never on .settings-close itself: that class is shared with
+   #btn-pairing-close, whose panel still relies on the base rule's align-self:flex-end. Restyling the
+   base would have quietly knocked the pairing dialog's close button out of its corner. */
+.settings-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  margin-bottom: 12px;
+}
+.settings-header .settings-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  align-self: auto;
+  margin-bottom: 0;
 }
 
 /* US2 — tab panes */
