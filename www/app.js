@@ -158,8 +158,57 @@ const ALARM_ESCALATION_TIMEOUT_MS = 45 * 60 * 1000; // 45 minutes
 
 function getAudioContext() {
   if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  // `.catch` added 03 Aug 2026 (Amendment 1). This `resume()` was BARE: its promise was never handled,
+  // so a context that refuses to resume raised an unhandled rejection out of a function every alarm
+  // sound calls first. Found by the never-silent cell in `spikes/verify_window_phase.js`, which is the
+  // only place that has ever made resume() fail. No audible change — the call is still fire-and-forget;
+  // it simply can no longer throw out of the audio path on the way to an alarm.
+  if (_audioCtx.state === 'suspended') { try { const p = _audioCtx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
   return _audioCtx;
+}
+
+// ── COLD-START AUDIO WARM-UP (Amendment 1, 03 Aug 2026 — captain's ear) ──────────────────────────
+// On a swiped/cold launch the first milliseconds of the activation chain tear — "robotic and violent,
+// straining to get going". Warm launches are clean, and the press path has never torn because a press
+// implies an already-warm app.
+//
+// The cause is the seam above: `resume()` returns a PROMISE and nothing awaits it, while the chain's
+// first sound is scheduled at `c.currentTime` immediately afterwards. On a cold process that schedules
+// output into a pipeline that is still spinning up, and the hardware renders the ramp-up.
+//
+// NEVER-SILENT BY CONSTRUCTION — the standing principle on this surface. This is a BOUNDED wait with a
+// fallthrough: it can delay the first sound by at most AUDIO_WARMUP_MAX_MS and then proceeds whatever
+// the context says. There is no branch here that can leave the alarm mute, which is the only outcome
+// that would be worse than a tear.
+//
+// NO AUDIBLE CHANGE ON WARM LAUNCHES: a context already 'running' returns on the first check, having
+// awaited nothing. Per-sound envelopes are untouched (brief constraint) — this fixes the pipeline, not
+// the sounds.
+const AUDIO_WARMUP_MAX_MS = 400;
+const AUDIO_WARMUP_POLL_MS = 20;
+
+async function _warmAudioPipeline(tag) {
+  const t0 = Date.now();
+  let c = null;
+  try {
+    c = getAudioContext();
+    if (c.state !== 'running') {
+      // resume() can reject if the context died; a rejection here must not abort the alarm.
+      try { await Promise.race([c.resume(), new Promise((r) => setTimeout(r, AUDIO_WARMUP_MAX_MS))]); }
+      catch (e) { /* fall through — bounded wait below still applies */ }
+      // resume() resolving is not the same as the pipeline producing, so poll the state it reports
+      // rather than trusting the promise. Bounded by the same deadline.
+      const deadline = t0 + AUDIO_WARMUP_MAX_MS;
+      while (c.state !== 'running' && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, AUDIO_WARMUP_POLL_MS));
+      }
+    }
+  } catch (e) {
+    console.log(`[AUDIO] warm-up ${tag} — FAILED (${e}); proceeding anyway, never-silent`);
+    return null;
+  }
+  console.log(`[AUDIO] warm-up ${tag} — state=${c ? c.state : 'none'} waited=${Date.now() - t0}ms`);
+  return c;
 }
 
 function playAlarmSiren() {
@@ -365,21 +414,10 @@ async function checkSession() {
     await _setEscalationState('idle');
   }
   // Stale-screen reconcile, now race-safe — see _reconcileEscalationFlag. Both reconcile sites call
-  // the one helper so they cannot drift (08 Jul parity lesson).
-  let savedEscState = await _reconcileEscalationFlag();
-  if (savedEscState === 'active') {
-    showEscalationActiveState();
-  } else if (savedEscState === 'terminal') {
-    // Restore the RIGHT terminal on reopen while it still holds (captain fix 2026-07-12): acknowledged
-    // success vs exhausted, from the outcome persisted by handleEscalationComplete.
-    if (await getPreference('escalation_terminal_outcome') === 'acknowledged') {
-      showEscalationAcknowledgedState((await getPreference('escalation_terminal_name')) || '');
-    } else {
-      showTerminalState();
-    }
-  } else {
-    setTimeout(() => { if (!launchedFromPush) showOrb(); }, 400);
-  }
+  // the one helper so they cannot drift (08 Jul parity lesson), and both now RENDER through the one
+  // render authority for the same reason: the window-phase guard must not exist at one site and not
+  // the other. These two blocks were byte-identical duplicates; they are now one call.
+  await _renderLaunchState(await _reconcileEscalationFlag());
 }
 
 async function onLoginSuccess(member) {
@@ -408,21 +446,10 @@ async function onLoginSuccess(member) {
     await _setEscalationState('idle');
   }
   // Stale-screen reconcile, now race-safe — see _reconcileEscalationFlag. Both reconcile sites call
-  // the one helper so they cannot drift (08 Jul parity lesson).
-  let savedEscState = await _reconcileEscalationFlag();
-  if (savedEscState === 'active') {
-    showEscalationActiveState();
-  } else if (savedEscState === 'terminal') {
-    // Restore the RIGHT terminal on reopen while it still holds (captain fix 2026-07-12): acknowledged
-    // success vs exhausted, from the outcome persisted by handleEscalationComplete.
-    if (await getPreference('escalation_terminal_outcome') === 'acknowledged') {
-      showEscalationAcknowledgedState((await getPreference('escalation_terminal_name')) || '');
-    } else {
-      showTerminalState();
-    }
-  } else {
-    setTimeout(() => { if (!launchedFromPush) showOrb(); }, 400);
-  }
+  // the one helper so they cannot drift (08 Jul parity lesson), and both now RENDER through the one
+  // render authority for the same reason: the window-phase guard must not exist at one site and not
+  // the other. These two blocks were byte-identical duplicates; they are now one call.
+  await _renderLaunchState(await _reconcileEscalationFlag());
 }
 
 function initSignIn() {
@@ -842,8 +869,13 @@ const ALARM_TIER2_MESSAGE_TAKEOVER = true;
 
 // Idempotent hard takeover — safe to call twice / when already on Today. reason is logged only.
 function alarmSurfaceTakeover(reason) {
-  for (let i = 0; i < _alarmSurfaceClosers.length; i++) { try { _alarmSurfaceClosers[i](); } catch (e) {} }
-  try { show('screen-today'); } catch (e) {}   // clears every .screen mirror view + lands on the alarm surface
+  // [LATCH-HUNT 2026-08-03] LOG ONLY — the catches below swallow silently, so a takeover that failed
+  // to land on Today has always been indistinguishable from one that worked. Same class of blindness
+  // as the three silent returns; same fix — say so. No catch behaviour changes, only its noise.
+  for (let i = 0; i < _alarmSurfaceClosers.length; i++) {
+    try { _alarmSurfaceClosers[i](); } catch (e) { console.log('[LATCH] surface closer ' + i + ' threw: ' + e); }
+  }
+  try { show('screen-today'); } catch (e) { console.log('[LATCH] show(screen-today) THREW: ' + e); }   // clears every .screen mirror view + lands on the alarm surface
   try { console.log('[ALARM] surface takeover —', reason); } catch (e) {}
 }
 
@@ -887,6 +919,36 @@ function showCancelWindowState() {
   document.getElementById('btn-alert').classList.remove('btn--pulse');
   document.getElementById('btn-cancel').classList.remove('hidden');
   document.getElementById('btn-alarm-done').classList.add('hidden');
+  _latchReadback('after showCancelWindowState');
+  // The audio sequence runs for ~13s after this returns. If something re-hides the card, or the
+  // WebView is not the thing on screen, the second reading is where it shows.
+  setTimeout(function () { _latchReadback('+3s (during audio)'); }, 3000);
+}
+
+// [LATCH-HUNT 2026-08-03] LOG ONLY. The 03 Aug evidence (audio played, no countdown seen) puts the
+// fault AFTER the render call, not before it — so the question stops being "did we ask for the card"
+// and becomes "what does the device actually have on screen". Asking the DOM and the WebView directly
+// is the only thing that separates the candidates: a card re-hidden by a later caller, a card shown
+// but laid out off-screen or zero-height, and a card correctly shown inside a WebView that was never
+// brought to the front. All three look identical from the member's chair.
+function _latchReadback(when) {
+  try {
+    const card = document.getElementById('alarm-countdown-card');
+    const today = document.getElementById('screen-today');
+    const settings = document.getElementById('settings-overlay');
+    const cs = card ? getComputedStyle(card) : null;
+    const r = card ? card.getBoundingClientRect() : null;
+    console.log('[LATCH] readback ' + when
+      + ' — card=' + (card ? (card.classList.contains('hidden') ? 'HIDDEN' : 'shown') : 'MISSING')
+      + ' display=' + (cs ? cs.display : '?')
+      + ' visibility=' + (cs ? cs.visibility : '?')
+      + ' opacity=' + (cs ? cs.opacity : '?')
+      + ' rect=' + (r ? Math.round(r.width) + 'x' + Math.round(r.height) + '@top' + Math.round(r.top) : '?')
+      + ' | screenToday=' + (today ? (today.classList.contains('hidden') ? 'HIDDEN' : 'shown') : 'MISSING')
+      + ' settingsOverlay=' + (settings ? (settings.classList.contains('hidden') ? 'closed' : 'OPEN') : 'MISSING')
+      + ' | webview.visibilityState=' + document.visibilityState
+      + ' hasFocus=' + (typeof document.hasFocus === 'function' ? document.hasFocus() : '?'));
+  } catch (e) { console.log('[LATCH] readback ' + when + ' FAILED: ' + e); }
 }
 
 // --- Shared "calling your contacts" screen (escalation · bridge · device dial) ---
@@ -1324,7 +1386,25 @@ function showTerminalState() {
   document.getElementById('btn-alarm-done').classList.remove('hidden');
   // 60s auto-return to resting Today if the user doesn't act (reuses the bridge terminal mechanism).
   _clearBridgeTerminalReturnTimer();
-  _bridgeTerminalReturnTimer = setTimeout(showAlarmIdleReset, BRIDGE_TERMINAL_AUTORETURN_MS);
+  // [LATCH-HUNT 2026-08-03] LOG ONLY — the ARM half of the symptom-2 signature (see the CANCEL line
+  // in _clearBridgeTerminalReturnTimer). Caller is read off the stack so the five arm sites stay
+  // distinguishable in logcat without five different strings.
+  try { console.log('[LATCH] terminal auto-return ARMED ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms — from'
+    + (((new Error()).stack || '').split('\n')[2] || ' (stack unavailable)')); } catch (e) {}
+  // [HYGIENE 2026-08-03] The handle is nulled INSIDE the fired callback, before the reset runs.
+  // Ruling: `03 Decisions/2026-08-03 CAPTAIN — fix it when you find it (hygiene class)`.
+  // setTimeout does not clear its own handle on fire, so the variable stayed non-null after firing —
+  // and showAlarmIdleReset's own _clearBridgeTerminalReturnTimer() then found it set and logged
+  // "CANCELLED before it fired" about a timer that had just fired 6ms earlier (observed 19:56:26 on
+  // 03 Aug). That made the CANCEL line unable to distinguish the two states the symptom-2 diagnosis
+  // actually turns on: armed-then-cancelled vs armed-and-fired. Nulling first makes the later clear a
+  // true no-op, so CANCELLED now only ever means a genuinely pending timer was stopped.
+  // Behaviour is unchanged for the member — showAlarmIdleReset already cleared this handle itself.
+  _bridgeTerminalReturnTimer = setTimeout(function () {
+    _bridgeTerminalReturnTimer = null;
+    console.log('[LATCH] terminal auto-return FIRED — ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms elapsed');
+    showAlarmIdleReset();
+  }, BRIDGE_TERMINAL_AUTORETURN_MS);
 }
 
 // Shared SUCCESS terminal (restyled) — the SINGLE success/finish card for BOTH the bridge resolved
@@ -1392,7 +1472,25 @@ function showSuccessTerminal({ leadCopy, name, nameFallback, subLines, callPhone
   // press. Keeps this success card on a reopen shortly after completion.
   // 60s auto-return to resting Today.
   _clearBridgeTerminalReturnTimer();
-  _bridgeTerminalReturnTimer = setTimeout(showAlarmIdleReset, BRIDGE_TERMINAL_AUTORETURN_MS);
+  // [LATCH-HUNT 2026-08-03] LOG ONLY — the ARM half of the symptom-2 signature (see the CANCEL line
+  // in _clearBridgeTerminalReturnTimer). Caller is read off the stack so the five arm sites stay
+  // distinguishable in logcat without five different strings.
+  try { console.log('[LATCH] terminal auto-return ARMED ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms — from'
+    + (((new Error()).stack || '').split('\n')[2] || ' (stack unavailable)')); } catch (e) {}
+  // [HYGIENE 2026-08-03] The handle is nulled INSIDE the fired callback, before the reset runs.
+  // Ruling: `03 Decisions/2026-08-03 CAPTAIN — fix it when you find it (hygiene class)`.
+  // setTimeout does not clear its own handle on fire, so the variable stayed non-null after firing —
+  // and showAlarmIdleReset's own _clearBridgeTerminalReturnTimer() then found it set and logged
+  // "CANCELLED before it fired" about a timer that had just fired 6ms earlier (observed 19:56:26 on
+  // 03 Aug). That made the CANCEL line unable to distinguish the two states the symptom-2 diagnosis
+  // actually turns on: armed-then-cancelled vs armed-and-fired. Nulling first makes the later clear a
+  // true no-op, so CANCELLED now only ever means a genuinely pending timer was stopped.
+  // Behaviour is unchanged for the member — showAlarmIdleReset already cleared this handle itself.
+  _bridgeTerminalReturnTimer = setTimeout(function () {
+    _bridgeTerminalReturnTimer = null;
+    console.log('[LATCH] terminal auto-return FIRED — ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms elapsed');
+    showAlarmIdleReset();
+  }, BRIDGE_TERMINAL_AUTORETURN_MS);
 }
 
 // Escalation success → the shared success terminal. Distinct sentence (a contact ACKNOWLEDGED — we
@@ -1426,6 +1524,13 @@ async function _escalationSelfHeal() {
 }
 
 function showAlarmIdleReset() {
+  // [LATCH-HUNT 2026-08-03] LOG ONLY. This is "THE single dismissal path" and it is also where the 60s
+  // terminal auto-return lands, so this line answers symptom 2 (did the timeout fire at all?) and,
+  // by what it does NOT clear, feeds symptom 1: neither _summonCountdownActive nor _silenceActivation
+  // is touched below. Recording their values on every reset is the evidence for whether that matters.
+  console.log('[LATCH] showAlarmIdleReset — summonCountdownActive=' + _summonCountdownActive
+    + ' silenceActivation=' + (_silenceActivation ? 'SET' : 'null')
+    + ' terminalReturnTimer=' + (_bridgeTerminalReturnTimer ? 'pending' : 'none'));
   _alarmFlowActive = false;  // back to the resting Today screen — OKAY's normal plan-based visibility resumes
   _disarmHelpButton();       // ruling 4 — return to rest returns the help button to rest with it
   _restoreVolumeNow();   // 009 Story 4 (R-009-5/T019) — catch-all: any return to resting restores prior volume
@@ -1434,6 +1539,12 @@ function showAlarmIdleReset() {
   // the self-heal, and Return-to-Iona all route through this. (A retry press heals its own flag in
   // _startHelpSequence.) Clear the persisted terminal outcome too so a later launch never restores a stale card.
   _setEscalationState('idle');
+  // The phase retires on the SAME single dismissal path as the state it qualifies. Left behind, a
+  // stale 'window' phase would outlive its run — and although the deadline check in
+  // _cancelWindowIsLive would already refuse it (expired reads as not-live), leaving a dead phase on
+  // disk to be saved by a second guard is how the run token became sticky for the life of a process.
+  // One authority over the moment, and it retires the whole moment.
+  _clearEscalationPhase();
   removePreference('escalation_terminal_outcome');
   removePreference('escalation_terminal_name');
   // Law-3 companion (2026-07-19): the run token is now a PREDICATE, not just a payload — the button-path
@@ -2023,6 +2134,100 @@ function _setEscalationState(value, why) {
   return setPreference('escalation_state', value);
 }
 
+// ── THE WINDOW PHASE (03 Aug 2026) ───────────────────────────────────────────────────────────────
+// Findings: vault `cc_findings_latch_hunt_2026-08-03`. Brief: `cc_brief_window_phase_fix_2026-08-03`.
+//
+// `escalation_state='active'` collapses two RULED-DISTINCT moments into one value:
+//   · the cancel window is open — the member can still stop it, and the countdown owns the screen
+//   · contacts are being called — Oran's Promise owns the screen
+// The 010 law is that the first always precedes the second, and the engine honours it to the second.
+// The launch reconcile could not tell them apart, so on a cold start it read the flag THE COUNTDOWN
+// ITSELF had just armed 184ms earlier, concluded "an escalation is running", and painted the Promise
+// over a live window 176ms after it rendered. Warm launches never raced, so the defect only ever
+// appeared on exactly the runs where the phone was in a pocket — the member's worst case.
+//
+// WHY A PARALLEL KEY AND NOT A NEW `escalation_state` VALUE. `escalation_state` is compared against
+// 'active' in a dozen places — liveness, press-time recovery, resume, the self-heal backstop — and
+// 'active' is genuinely TRUE during the window: an activation really is live, which is why the
+// runner's grace period and the press-time absorb both depend on it. Splitting that value would
+// change every one of those comparisons to answer a question none of them asks. The phase answers
+// the one question only the RENDER sites ask: which screen is honest right now.
+//
+// `trustFresh` is untouched, by design (brief item 2). A fresh flag is still believed exactly as it
+// was; the phase only changes what believing it RENDERS. The 12:23 heal-to-idle fix is unaffected.
+const ESC_PHASE_WINDOW   = 'window';     // the cancel window is open — the countdown is the truth
+const ESC_PHASE_CONTACTS = 'contacts';   // the window concluded — the Promise is the truth
+
+// Written with the window's own deadline so a launch arriving mid-window can tell a window that is
+// still open from one that expired while the app was dead. Device-clock ms, 0 when unknown.
+function _setEscalationPhase(phase, deadlineAt) {
+  console.log(`[ESC-PHASE] -> ${phase}${deadlineAt ? `  (deadline ${deadlineAt})` : ''}`);
+  const p = setPreference('escalation_phase', phase);
+  setPreference('escalation_phase_deadline', String(deadlineAt || 0));
+  return p;
+}
+
+function _clearEscalationPhase() {
+  removePreference('escalation_phase');
+  removePreference('escalation_phase_deadline');
+}
+
+// Is a cancel window live RIGHT NOW? Two authorities, in order of certainty:
+//   1. THIS PROCESS owns one — `_silenceActivation` / `_summonCountdownActive` are the live objects,
+//      not a record of one. On the cold-start race this is the authority that answers, because the
+//      push handler has already run by the time the reconcile finishes its awaits.
+//   2. The persisted phase says a window was open and its deadline has not passed. This covers the
+//      launch that is NOT push-driven — the member opening the app during a window the engine holds.
+//
+// BIAS IS DELIBERATE AND MATCHES THE REST OF THIS SURFACE: an expired or unreadable deadline reads
+// as NOT live, so a stale 'window' phase can never strand a member on a countdown the engine has
+// already passed. Never show time that is not really there — the same rule the anchoring ruling and
+// the `seconds <= 0` skip were both ratified on.
+async function _cancelWindowIsLive() {
+  if (_silenceActivation || _summonCountdownActive) return 'in-process';
+  try {
+    if (await getPreference('escalation_phase') !== ESC_PHASE_WINDOW) return null;
+    const deadline = parseInt((await getPreference('escalation_phase_deadline')) || '0', 10) || 0;
+    if (deadline && Date.now() < deadline) return 'persisted';
+  } catch (e) { /* bias to not-live: the Promise is never worse than a countdown that lies */ }
+  return null;
+}
+
+// THE ONE LAUNCH RENDER AUTHORITY. Both launch paths (cached/offline launch and onLoginSuccess) held
+// byte-identical copies of this block; the 08 Jul parity lesson says two fire sites drift unless there
+// is only one of them, and this pass is the proof — the guard below has to hold on BOTH paths, and a
+// push can cold-start either one.
+async function _renderLaunchState(savedEscState) {
+  if (savedEscState === 'active') {
+    // THE COLD-START RACE (03 Aug 2026). A push-driven launch runs this reconcile CONCURRENTLY with
+    // the activation it is reconciling, and the activation wins the race to ARM while losing the race
+    // to PAINT. If a cancel window is live, the countdown is already on screen and it is the honest
+    // surface: painting the Promise over it destroys the member's only chance to stop the call, on
+    // exactly the runs where the phone was in a pocket.
+    //
+    // YIELD, never re-render. The activation owns the screen and hands it to the Promise itself when
+    // the window concludes (_silenceFlipToPromise). Re-deriving a window here would restart it — the
+    // one thing the anchoring ruling forbids, because the engine's deadline is already running.
+    const live = await _cancelWindowIsLive();
+    if (live) {
+      console.log(`[ESC-PHASE] launch reconcile YIELDING — a cancel window is live (${live}); `
+                + 'the countdown owns the screen until it concludes');
+      return;
+    }
+    showEscalationActiveState();
+  } else if (savedEscState === 'terminal') {
+    // Restore the RIGHT terminal on reopen while it still holds (captain fix 2026-07-12): acknowledged
+    // success vs exhausted, from the outcome persisted by handleEscalationComplete.
+    if (await getPreference('escalation_terminal_outcome') === 'acknowledged') {
+      showEscalationAcknowledgedState((await getPreference('escalation_terminal_name')) || '');
+    } else {
+      showTerminalState();
+    }
+  } else {
+    setTimeout(() => { if (!launchedFromPush) showOrb(); }, 400);
+  }
+}
+
 // ── THE HEAL RACE, CLOSED BY COMPARE-AND-SET (captain ruling, 30 Jul 2026 — Phase 1b) ────────────
 // Findings: vault `cc_findings_liveness_fix_phase1_partial_2026-07-30`.
 //
@@ -2477,10 +2682,20 @@ const SILENCE_TICK_MS = 250;
 // top-level `const` this read SA_STATIC_BASE (declared ~1300 lines below) while it was still in the
 // temporal dead zone, which threw at module load and took the whole of app.js with it: no handlers, no
 // screens, blank app. `node --check` cannot see this — it is a runtime fault, not a syntax one.
-function _silenceActivationClip() { return SA_STATIC_BASE + 'activation_silence.mp3'; }
-// siren 5.00 + attention tone 1.10 + Oran 6.07 = 12.17, rounded up. Paired with the engine's 14s
-// lead-in constant — re-measure both if any of the three assets changes.
-const SILENCE_SEQUENCE_SECONDS = 13;
+// v1.16 (03 Aug 2026) — the SUCCESSOR clip, carrying the captain-ruled harmonised body. Deliberately a
+// new filename rather than an overwrite: `activation_silence.mp3` is the verified 19 Jul artefact and
+// Polly is not byte-reproducible, so overwriting it would have destroyed the only good copy of a clip
+// that has been heard on device. The old file stays bundled and byte-untouched; this line is the whole
+// swap, and reverting the ruling is reverting this line.
+function _silenceActivationClip() { return SA_STATIC_BASE + 'activation_silence_v2.mp3'; }
+// RE-MEASURED 2026-08-03 with `afinfo` on the rendered artefacts (deck v1.16):
+//   siren 5.000 + attention tone 1.100 + greeting 0.936 + body 8.376 = 15.412 → 16, rounded up.
+// Was 13 (siren 5.00 + tone 1.10 + Oran 6.07 = 12.17). BOTH halves grew: the ruled body is longer than
+// the clip it replaces, and this path now carries the member greeting for the first time.
+// PAIRED with the engine's CANCEL_WINDOW_DEVICE_LEAD_IN_SECONDS (config.py), which moves 14 → 16 in the
+// same change — at 14 the chain overran the engine's declared lead-in by 1.41s and Oran would still have
+// been speaking as the contacts were dialled. Re-measure BOTH if any of the four assets changes.
+const SILENCE_SEQUENCE_SECONDS = 16;
 
 let _silenceActivation = null;   // { data, runToken, cancelled, flipped, timer, backstop } while on screen
 
@@ -2489,6 +2704,11 @@ function _silenceCancelBtn() { return document.getElementById('btn-cancel'); }
 // Tear down every timer/listener the activation screen owns. Safe to call twice (both exits use it).
 function _silenceTeardown() {
   const s = _silenceActivation;
+  // [LATCH-HUNT 2026-08-03] LOG ONLY. _summonCountdownActive = false lives INSIDE this function, below
+  // the early return — so a teardown called with _silenceActivation already null clears NOTHING. That
+  // asymmetry is a latch candidate in its own right; this line makes each call say which it was.
+  console.log('[LATCH] teardown called — silenceActivation=' + (s ? 'SET (will clear both)'
+                                                                 : 'null (EARLY RETURN — clears nothing)'));
   if (!s) return;
   if (s.timer) { clearInterval(s.timer); s.timer = null; }
   if (s.backstop) { clearTimeout(s.backstop); s.backstop = null; }
@@ -2503,6 +2723,13 @@ function _silenceFlipToPromise(data) {
   const s = _silenceActivation;
   if (!s || s.flipped || s.cancelled) return false;
   s.flipped = true;
+  // PHASE PROMOTION — the window has CONCLUDED and the Promise legitimately takes over. This is the
+  // exact moment the phase stops being a lie in the other direction: from here a launch reconcile
+  // SHOULD paint the Promise, and the guard must stop yielding to a window that no longer exists.
+  // Promoted here rather than at the countdown's zero because zero is not the conclusion — the screen
+  // deliberately holds at 0 until the engine's own word arrives (or the backstop fires), and this
+  // function is where both of those land.
+  _setEscalationPhase(ESC_PHASE_CONTACTS, 0);
   // EXPIRE path — the window ran out and the sweep has begun. Captain 19 Jul: the escalation surface
   // now owns the screen, so the prompts that went unanswered are SUPERSEDED. Offering a stale OKAY
   // against a contact the engine has moved past is the stale-state class.
@@ -2535,7 +2762,21 @@ function _silenceFlipToPromise(data) {
 // sounded and the member has been looking at a locked phone). It no longer drives the countdown: the
 // deadline does, for both paths.
 async function _startSilenceActivation(data, opts) {
-  if (_silenceActivation) return;            // duplicate push — one window, never two
+  // ── [LATCH-HUNT 2026-08-03] LOG ONLY — zero behaviour change. Brief: cc_brief_latch_hunt_2026-08-03.
+  // Three separate returns below abandon the cancel window and, until now, ALL THREE were silent. The
+  // engine-deadline skip (further down) has logged loudly since 02 Aug, so its absence from logcat has
+  // been read as "no push arrived" when it may equally have been one of these two. Name them. ──
+  console.log('[LATCH] silence ENTRY — summonCountdownActive=' + _summonCountdownActive
+    + ' silenceActivation=' + (_silenceActivation ? 'SET' : 'null')
+    + ' summonEvaluating=' + _summonEvaluating
+    + ' buttonCountdownTimer=' + (escalationCountdownTimer ? 'LIVE' : 'null')
+    + ' activeRunToken=' + (_activeRunToken || '(none)')
+    + ' pushRunToken=' + ((data && data.run_token) || '(none)'));
+  if (_silenceActivation) {
+    console.log('[LATCH] RETURN A — duplicate guard: _silenceActivation is still SET from an earlier run. '
+      + 'No window will render.');
+    return;                                  // duplicate push — one window, never two
+  }
   const resumeSeconds = opts && opts.resumeSeconds;
   const _win = _cwClamp(data && data.cancel_window);
   const _lead = parseInt((data && data.device_lead_in) ?? '0', 10) || 0;
@@ -2573,6 +2814,14 @@ async function _startSilenceActivation(data, opts) {
      orphan recovery would dial contacts the member had superseded). This branch fixes law 1 and
      law 3 today and does not make the expiry case any worse than it already is. ── */
   if (_summonCountdownActive && !_silenceActivation) {
+    // [LATCH-HUNT 2026-08-03] LOG ONLY. This branch is CORRECT when a button window is genuinely on
+    // screen, and indistinguishable from a LATCH when _summonCountdownActive was left true by a run
+    // that ended without passing through one of its three clear sites. buttonCountdownTimer above is
+    // the discriminator: LIVE = a real window, null = nothing is counting and the flag is stale.
+    console.log('[LATCH] RETURN B — collision-B branch: _summonCountdownActive is true with no silence '
+      + 'window. buttonCountdownTimer=' + (escalationCountdownTimer ? 'LIVE (genuine collision)'
+                                                                    : 'null (STALE FLAG — nothing is counting)')
+      + '. No window will render.');
     if (_deadlineAt) _adoptedEngineDeadlineAt = _deadlineAt;
     _activeRunToken = (data && data.run_token) || _activeRunToken;
     return;
@@ -2607,6 +2856,10 @@ async function _startSilenceActivation(data, opts) {
                 (_lateBy !== null ? ` LATE_BY=${_lateBy}s` : ' (no run_ts — deadline unknown)'));
     _silenceRunToken = (data && data.run_token) || null;
     setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+    // PHASE = CONTACTS. This branch exists precisely because the window is already spent — the engine
+    // has dialled or is about to — so the Promise IS the honest surface here and a launch reconcile
+    // landing on this state must render it, not yield to a window that no longer exists.
+    _setEscalationPhase(ESC_PHASE_CONTACTS, 0);
     _setEscalationState('active');
     showEscalationActiveState();
     return;
@@ -2618,6 +2871,12 @@ async function _startSilenceActivation(data, opts) {
   // state that gates handleEscalationComplete's terminal render is armed here, exactly as before. The
   // cancel path returns it to idle via showAlarmIdleReset.
   setPreference('escalation_state_ts', String(Date.now()));   // 1c.1 — STAMP FIRST
+  // PHASE = WINDOW, written BEFORE the state flag it qualifies. Ordering is load-bearing for the same
+  // reason the stamp goes first: a reconcile that observes 'active' must never be able to observe it
+  // without the phase that says which moment it is. Written with the ENGINE'S deadline (not a
+  // device-local one) so a later launch measures the window against what the engine will actually
+  // honour — the anchoring ruling, applied to the persisted half.
+  _setEscalationPhase(ESC_PHASE_WINDOW, _deadlineAt || (Date.now() + seconds * 1000));
   _setEscalationState('active');
   _activeRunToken = (data && data.run_token) || null;   // the cancel POST is instance-scoped on this
   _silenceRunToken = _activeRunToken;                   // Amendment 11 — mark THIS run as silence-triggered,
@@ -2667,10 +2926,34 @@ async function _startSilenceActivation(data, opts) {
   // contacts had been rung. Same rule now governs both landings: if it does not fit, the countdown alone
   // is the honest surface.
   if (seconds > SILENCE_SEQUENCE_SECONDS + 2) {
+    // Amendment 1 (03 Aug) — warm the pipeline BEFORE the first sound, not after it. This is the only
+    // chain that can run on a cold process: the press path implies a warm app, which is exactly why it
+    // has never torn. Bounded and never-silent (see _warmAudioPipeline); a no-op when already running,
+    // so warm launches are byte-identical in what they sound like.
+    await _warmAudioPipeline('silence-chain');
+    if (s.cancelled || s.flipped) return;
     await playAlarmSiren();
     if (s.cancelled || s.flipped) return;
     await playAttentionTone();
     if (s.cancelled || s.flipped) return;
+    // v1.16 GREETING SPLICE (03 Aug 2026) — the silence path joins the 24 Jul beacon-arc shape:
+    // greeting → nameless body, exactly as the button path has done since v1.15. This path was the
+    // last one still opening with a bare nameless clip, so a member was addressed by name when they
+    // PRESSED for help and not when they went QUIET — the case where it matters more, because nothing
+    // else has told them the phone is speaking to them.
+    //
+    // NEVER-SILENT BY CONSTRUCTION, and the button path is the reference implementation — matched, not
+    // reinvented: a missing / stale / uncached greeting resolves to null and is SKIPPED with zero wait,
+    // so the body plays alone. It degrades to nameless, never to silence.
+    //
+    // The cancel tap stays live ACROSS the greeting, exactly as across the siren, tone and body — the
+    // guard below is the same one every other step in this chain carries.
+    let _greetingSrc = null;
+    try { _greetingSrc = await _saCachedSrc('member_greeting'); } catch (e) { _greetingSrc = null; }
+    if (_greetingSrc) {
+      await _saPlayOnce(_greetingSrc);
+      if (s.cancelled || s.flipped) return;
+    }
     await _saPlayOnce(_silenceActivationClip());
     if (s.cancelled || s.flipped) return;
   }
@@ -3529,7 +3812,14 @@ function _armJoinConfirmTimeout(contactFirst) {
 // Cancel a pending success-terminal auto-return (manual Return-to-Iona, a fresh I NEED HELP press,
 // or the resting-Today reset). Safe no-op if none is pending.
 function _clearBridgeTerminalReturnTimer() {
-  if (_bridgeTerminalReturnTimer) { clearTimeout(_bridgeTerminalReturnTimer); _bridgeTerminalReturnTimer = null; }
+  // [LATCH-HUNT 2026-08-03] LOG ONLY. Symptom 2 has three distinct causes with three signatures:
+  // never armed (no ARM line), armed-then-cancelled (this CANCEL line before the 60s elapses), or
+  // armed-and-never-fired (ARM line, no showAlarmIdleReset line 60s later). Only the cancel case is
+  // invisible without this — it is a silent no-op today.
+  if (_bridgeTerminalReturnTimer) {
+    console.log('[LATCH] terminal auto-return CANCELLED before it fired');
+    clearTimeout(_bridgeTerminalReturnTimer); _bridgeTerminalReturnTimer = null;
+  }
 }
 
 // Single teardown point: clears the attempt object and stops the foreground service.
@@ -3940,7 +4230,25 @@ function showBridgeTerminalState(state, connectedName, contactPhone) {
   // 60s auto-return to resting Today (the EXHAUSTED terminal). Cancelled by a manual Return-to-Iona,
   // a fresh I NEED HELP press, or any resting-Today reset.
   _clearBridgeTerminalReturnTimer();
-  _bridgeTerminalReturnTimer = setTimeout(showAlarmIdleReset, BRIDGE_TERMINAL_AUTORETURN_MS);
+  // [LATCH-HUNT 2026-08-03] LOG ONLY — the ARM half of the symptom-2 signature (see the CANCEL line
+  // in _clearBridgeTerminalReturnTimer). Caller is read off the stack so the five arm sites stay
+  // distinguishable in logcat without five different strings.
+  try { console.log('[LATCH] terminal auto-return ARMED ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms — from'
+    + (((new Error()).stack || '').split('\n')[2] || ' (stack unavailable)')); } catch (e) {}
+  // [HYGIENE 2026-08-03] The handle is nulled INSIDE the fired callback, before the reset runs.
+  // Ruling: `03 Decisions/2026-08-03 CAPTAIN — fix it when you find it (hygiene class)`.
+  // setTimeout does not clear its own handle on fire, so the variable stayed non-null after firing —
+  // and showAlarmIdleReset's own _clearBridgeTerminalReturnTimer() then found it set and logged
+  // "CANCELLED before it fired" about a timer that had just fired 6ms earlier (observed 19:56:26 on
+  // 03 Aug). That made the CANCEL line unable to distinguish the two states the symptom-2 diagnosis
+  // actually turns on: armed-then-cancelled vs armed-and-fired. Nulling first makes the later clear a
+  // true no-op, so CANCELLED now only ever means a genuinely pending timer was stopped.
+  // Behaviour is unchanged for the member — showAlarmIdleReset already cleared this handle itself.
+  _bridgeTerminalReturnTimer = setTimeout(function () {
+    _bridgeTerminalReturnTimer = null;
+    console.log('[LATCH] terminal auto-return FIRED — ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms elapsed');
+    showAlarmIdleReset();
+  }, BRIDGE_TERMINAL_AUTORETURN_MS);
 }
 
 // T016 / T017 — Bridge UI state rendering
@@ -5407,7 +5715,25 @@ async function _deviceDialTerminal(reason) {
   _showTerminalCard();
   // 60s auto-return to resting Today (same mechanism as the bridge/escalation terminals).
   _clearBridgeTerminalReturnTimer();
-  _bridgeTerminalReturnTimer = setTimeout(showAlarmIdleReset, BRIDGE_TERMINAL_AUTORETURN_MS);
+  // [LATCH-HUNT 2026-08-03] LOG ONLY — the ARM half of the symptom-2 signature (see the CANCEL line
+  // in _clearBridgeTerminalReturnTimer). Caller is read off the stack so the five arm sites stay
+  // distinguishable in logcat without five different strings.
+  try { console.log('[LATCH] terminal auto-return ARMED ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms — from'
+    + (((new Error()).stack || '').split('\n')[2] || ' (stack unavailable)')); } catch (e) {}
+  // [HYGIENE 2026-08-03] The handle is nulled INSIDE the fired callback, before the reset runs.
+  // Ruling: `03 Decisions/2026-08-03 CAPTAIN — fix it when you find it (hygiene class)`.
+  // setTimeout does not clear its own handle on fire, so the variable stayed non-null after firing —
+  // and showAlarmIdleReset's own _clearBridgeTerminalReturnTimer() then found it set and logged
+  // "CANCELLED before it fired" about a timer that had just fired 6ms earlier (observed 19:56:26 on
+  // 03 Aug). That made the CANCEL line unable to distinguish the two states the symptom-2 diagnosis
+  // actually turns on: armed-then-cancelled vs armed-and-fired. Nulling first makes the later clear a
+  // true no-op, so CANCELLED now only ever means a genuinely pending timer was stopped.
+  // Behaviour is unchanged for the member — showAlarmIdleReset already cleared this handle itself.
+  _bridgeTerminalReturnTimer = setTimeout(function () {
+    _bridgeTerminalReturnTimer = null;
+    console.log('[LATCH] terminal auto-return FIRED — ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms elapsed');
+    showAlarmIdleReset();
+  }, BRIDGE_TERMINAL_AUTORETURN_MS);
 }
 
 // --- Device-dial event logging: online write, else queue locally + flush when online ---
@@ -7053,7 +7379,25 @@ function _showServiceTestTerminal(success) {
   });
   document.getElementById('btn-alarm-done').classList.remove('hidden');   // Return to Iona only (no real summon from a test)
   _clearBridgeTerminalReturnTimer();
-  _bridgeTerminalReturnTimer = setTimeout(showAlarmIdleReset, BRIDGE_TERMINAL_AUTORETURN_MS);
+  // [LATCH-HUNT 2026-08-03] LOG ONLY — the ARM half of the symptom-2 signature (see the CANCEL line
+  // in _clearBridgeTerminalReturnTimer). Caller is read off the stack so the five arm sites stay
+  // distinguishable in logcat without five different strings.
+  try { console.log('[LATCH] terminal auto-return ARMED ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms — from'
+    + (((new Error()).stack || '').split('\n')[2] || ' (stack unavailable)')); } catch (e) {}
+  // [HYGIENE 2026-08-03] The handle is nulled INSIDE the fired callback, before the reset runs.
+  // Ruling: `03 Decisions/2026-08-03 CAPTAIN — fix it when you find it (hygiene class)`.
+  // setTimeout does not clear its own handle on fire, so the variable stayed non-null after firing —
+  // and showAlarmIdleReset's own _clearBridgeTerminalReturnTimer() then found it set and logged
+  // "CANCELLED before it fired" about a timer that had just fired 6ms earlier (observed 19:56:26 on
+  // 03 Aug). That made the CANCEL line unable to distinguish the two states the symptom-2 diagnosis
+  // actually turns on: armed-then-cancelled vs armed-and-fired. Nulling first makes the later clear a
+  // true no-op, so CANCELLED now only ever means a genuinely pending timer was stopped.
+  // Behaviour is unchanged for the member — showAlarmIdleReset already cleared this handle itself.
+  _bridgeTerminalReturnTimer = setTimeout(function () {
+    _bridgeTerminalReturnTimer = null;
+    console.log('[LATCH] terminal auto-return FIRED — ' + BRIDGE_TERMINAL_AUTORETURN_MS + 'ms elapsed');
+    showAlarmIdleReset();
+  }, BRIDGE_TERMINAL_AUTORETURN_MS);
 }
 
 async function runServiceTestCall(source) {
