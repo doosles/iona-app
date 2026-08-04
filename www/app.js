@@ -6742,8 +6742,9 @@ function _saClearDirty() { const b = document.getElementById('sa-save'); if (b) 
 // 'other' only; its wrapper is display-toggled in _saRender). Each collapsed = nav row; tap shows/hides
 // its .sa-* body WITHOUT destroying field state (an in-progress edit survives collapse+expand). The
 // shared "Save account details" button shows whenever either accordion is open (both collapsed → hidden,
-// so the rows read as a clean nav list). Save still writes holder names always + svcuser names only for
-// 'other' (saveAccountDetails is unchanged).
+// so the rows read as a clean nav list). Save writes holder names always; svcuser names come from the
+// svcuser fields on an 'other' account and from the HOLDER fields on a 'self' account, where they are
+// the same person (lockstep, 04 Aug 2026 — see saveAccountDetails).
 const _SA_ACCS = ['sa-holder-acc', 'sa-svcuser-acc'];
 function _saSyncSaveVisibility() {
   const save = document.getElementById('sa-save');
@@ -6836,9 +6837,17 @@ async function saveAccountDetails() {
   const last = (document.getElementById('sa-last')?.value || '').trim();
   if (!first || !last) { _showCalmNote('Please add a first and last name.'); return; }
   const fields = { 'first-name': first, 'last-name': last };
-  if ((cf['account-type'] || 'self') === 'other') {   // only write service-user-* for 'other' (self → leave alone, per website)
+  /* SELF: holder and service user are the same person, so both name pairs move together — this is
+     the lockstep onboarding already sets at birth and later edits used to break.
+     OTHER: the service-user names belong to a DIFFERENT person and are written only from their own
+     fields; the holder save must never overwrite them (05 Jul ruling, unamended for this case).
+     Ruling: 2026-08-04 CAPTAIN — name semantics ruled; AH-SU lockstep on self accounts. */
+  if ((cf['account-type'] || 'self') === 'other') {
     fields['service-user-first-name'] = (document.getElementById('sa-su-first')?.value || '').trim();
     fields['service-user-last-name'] = (document.getElementById('sa-su-last')?.value || '').trim();
+  } else {
+    fields['service-user-first-name'] = first;
+    fields['service-user-last-name'] = last;
   }
   const prev = {};
   Object.keys(fields).forEach(k => { prev[k] = cf[k]; });
